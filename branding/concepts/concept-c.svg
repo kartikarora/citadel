@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
+  <!-- Concept C: The Keystone Matrix (Fortress Battlement + Multiverse Node) -->
+  <!-- Triple interlocking crenellation / vault columns representing universal portals -->
+  <path fill-rule="evenodd" clip-rule="evenodd" fill="#000000" d="
+    M 36,36
+    L 84,36
+    L 84,104
+    L 108,104
+    L 108,36
+    L 148,36
+    L 148,104
+    L 172,104
+    L 172,36
+    L 220,36
+    L 220,140
+    C 220,186 182,220 128,228
+    C 74,220 36,186 36,140
+    Z
+    M 84,142
+    C 84,166 102,185 128,190
+    C 154,185 172,166 172,142
+    L 172,136
+    L 84,136
+    Z
+  "/>
+</svg>

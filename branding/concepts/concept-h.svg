@@ -1,0 +1,36 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
+  <title>Citadel Logo - The AI Skill Bastion</title>
+  <!-- Architectural Fortress Shield Silhouette in Citadel Ink (#0d1117) -->
+  <path fill="#0d1117" d="
+    M 128,24
+    L 214,64
+    L 214,124
+    L 182,124
+    L 182,90
+    L 128,64
+    L 74,90
+    L 74,166
+    L 128,192
+    L 182,166
+    L 182,132
+    L 214,132
+    L 214,192
+    L 128,232
+    L 42,192
+    L 42,64
+    Z
+  "/>
+  <!-- AI Intelligence Core (Four-Pointed Spark in Citadel Electric Indigo #818cf8) -->
+  <path fill="#818cf8" d="
+    M 128,84
+    C 128,108 140,120 164,128
+    C 140,136 128,148 128,172
+    C 128,148 116,136 92,128
+    C 116,120 128,108 128,84
+    Z
+  "/>
+  <!-- Three Peripheral Skill Cubes (Antigravity, Claude, Cursor) in Iris (#6366f1) -->
+  <rect x="188" y="74" width="16" height="16" rx="4" fill="#6366f1"/>
+  <rect x="188" y="166" width="16" height="16" rx="4" fill="#6366f1"/>
+  <rect x="52" y="120" width="16" height="16" rx="4" fill="#6366f1"/>
+</svg>

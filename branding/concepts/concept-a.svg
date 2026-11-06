@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
+  <!-- Concept A: The Sovereign Gate (Bastion Portal) -->
+  <!-- Outer Fortress Shield Silhouette & Archway -->
+  <path fill-rule="evenodd" clip-rule="evenodd" fill="#000000" d="
+    M 128,24
+    L 208,58
+    C 208,136 182,198 128,232
+    C 74,198 48,136 48,58
+    Z
+    M 128,68
+    C 106,68 88,86 88,108
+    L 88,188
+    C 100,195 114,200 128,203
+    C 142,200 156,195 168,188
+    L 168,108
+    C 168,86 150,68 128,68
+    Z
+    M 128,96
+    C 134.627,96 140,101.373 140,108
+    L 140,172
+    C 136,174 132,175 128,176
+    C 124,175 120,174 116,172
+    L 116,108
+    C 116,101.373 121.373,96 128,96
+    Z
+  "/>
+</svg>

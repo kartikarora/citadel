@@ -1,0 +1,62 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256"><g transform="translate(-4.35 -4.35) scale(1.034)">
+  
+  
+  <!-- 1. Outer Fortress Shield Silhouette in Deep Midnight Slate (#0f172a) -->
+  <path fill="#0f172a" d="
+    M 128,24
+    L 214,64
+    C 214,146 186,204 128,232
+    C 70,204 42,146 42,64
+    Z
+  "/>
+  
+  <!-- 2. Dark Indigo Secondary Armor Plate (#1e1b4b) -->
+  <path fill="#1e1b4b" d="
+    M 128,44
+    L 194,76
+    C 194,144 172,192 128,216
+    C 84,192 62,144 62,76
+    Z
+  "/>
+
+  <!-- 3. The Neural Synapse Connections (Skills to Agents Network) -->
+  <!-- Outer loop connections -->
+  <path stroke="#818cf8" stroke-opacity="0.35" stroke-width="3" stroke-linecap="round" d="
+    M 128,68 L 86,112
+    M 128,68 L 170,112
+    M 86,112 L 86,156
+    M 170,112 L 170,156
+    M 86,156 L 128,188
+    M 170,156 L 128,188
+  "/>
+  <!-- Cross-synapse connections linking to the central AI Core -->
+  <path stroke="#818cf8" stroke-opacity="0.6" stroke-width="3.5" stroke-linecap="round" d="
+    M 128,68 L 128,134
+    M 86,112 L 128,134
+    M 170,112 L 128,134
+    M 86,156 L 128,134
+    M 170,156 L 128,134
+    M 128,188 L 128,134
+  "/>
+
+  <!-- 4. Apex AI Intelligence Spark (#818cf8) -->
+  <path fill="#818cf8" d="
+    M 128,52
+    C 128,62 133,68 144,68
+    C 133,68 128,74 128,84
+    C 128,74 123,68 112,68
+    C 123,68 128,62 128,52
+    Z
+  "/>
+
+  <!-- 5. Peripheral Skill Nodes (Outer AI Agent Integrations) -->
+  <circle cx="86" cy="112" r="7" fill="#6366f1"/>
+  <circle cx="170" cy="112" r="7" fill="#6366f1"/>
+  <circle cx="86" cy="156" r="7" fill="#6366f1"/>
+  <circle cx="170" cy="156" r="7" fill="#6366f1"/>
+  <circle cx="128" cy="188" r="8" fill="#818cf8"/>
+
+  <!-- 6. Central Intelligence Nucleus / Keystone Portal -->
+  <circle cx="128" cy="134" r="12" fill="#818cf8"/>
+  <circle cx="128" cy="134" r="6" fill="#ffffff"/>
+</g></svg>

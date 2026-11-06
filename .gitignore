@@ -1,0 +1,17 @@
+# Swift Package Manager
+.build/
+Packages/
+*.xcodeproj
+*.xcworkspace
+.swiftpm/
+
+# Local Secrets & Configuration
+.env*
+*.secrets.json
+citadel-secrets.json
+citadel.env
+
+.DS_Store
+*.swp
+*~
+dist/

@@ -1,0 +1,40 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
+  <!-- Concept E (Refined): The Tri-Node Bastion Monogram -->
+  <!-- Upper Turret -->
+  <path fill="#6366f1" d="
+    M 56,44
+    L 200,44
+    L 200,92
+    L 152,92
+    L 152,80
+    L 104,80
+    L 104,116
+    L 56,116
+    Z
+  "/>
+  <!-- Middle Arm & Vault Portal (Electric Indigo #818cf8) -->
+  <path fill="#818cf8" d="
+    M 56,104
+    L 104,104
+    L 104,152
+    L 56,152
+    Z
+    M 140,116
+    L 200,116
+    L 200,140
+    L 140,140
+    Z
+  "/>
+  <!-- Lower Foundation Fortress -->
+  <path fill="#4338ca" d="
+    M 56,140
+    L 104,140
+    L 104,176
+    L 152,176
+    L 152,164
+    L 200,164
+    L 200,212
+    L 56,212
+    Z
+  "/>
+</svg>

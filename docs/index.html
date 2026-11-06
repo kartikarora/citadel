@@ -1,0 +1,748 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Citadel — The Council of Skills & MCPs for AI Assistants</title>
+  <link rel="canonical" href="https://citadel.kartikarora.me/">
+  <meta name="description" content="Centralized source of truth for your AI skills and MCP servers across Antigravity, Claude Code, Cursor, Android Studio, Copilot, and Junie.">
+  <meta property="og:title" content="Citadel — Canonical AI Skill & MCP Hub">
+  <meta property="og:url" content="https://citadel.kartikarora.me/">
+  <meta property="og:description" content="One canonical home for all AI skills with zero-overhead symlinks and zero-knowledge private cloud sync.">
+  
+  <!-- Mandatory Brand CDN Assets -->
+  <link href="https://distribute.kartikarora.me/css/kartikarora.css" rel="stylesheet">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Albert+Sans:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet">
+  <script src="https://distribute.kartikarora.me/js/kartikarora.js" defer></script>
+
+  <!-- Favicons and App Icons -->
+  <link rel="icon" href="/favicon.ico" sizes="48x48">
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+  <link rel="manifest" href="/site.webmanifest">
+
+  <style>
+    :root {
+      --color-paper: oklch(98.5% 0.005 250);
+      --color-paper-alt: oklch(96.0% 0.008 250);
+      --color-paper-sunken: oklch(93.5% 0.010 250);
+      --color-ink: oklch(18.0% 0.015 255);
+      --color-ink-muted: oklch(46.0% 0.020 255);
+      --color-ink-faint: oklch(66.0% 0.018 255);
+      --color-rule: oklch(88.0% 0.010 250);
+      --color-rule-strong: oklch(76.0% 0.015 250);
+      --color-signal: oklch(52.0% 0.24 255);
+      --color-signal-hover: oklch(46.0% 0.24 255);
+      --color-signal-wash: oklch(52.0% 0.24 255 / 0.10);
+      --color-signal-ink: oklch(99.0% 0 0);
+      --color-focus: oklch(52.0% 0.24 255);
+    }
+
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --color-paper: oklch(14.0% 0.012 255);
+        --color-paper-alt: oklch(18.5% 0.016 255);
+        --color-paper-sunken: oklch(11.0% 0.010 255);
+        --color-ink: oklch(94.0% 0.015 255);
+        --color-ink-muted: oklch(72.0% 0.020 255);
+        --color-ink-faint: oklch(48.0% 0.018 255);
+        --color-rule: oklch(24.0% 0.018 255);
+        --color-rule-strong: oklch(34.0% 0.025 255);
+        --color-signal: oklch(68.0% 0.22 255);
+        --color-signal-hover: oklch(74.0% 0.20 255);
+        --color-signal-wash: oklch(68.0% 0.22 255 / 0.14);
+        --color-signal-ink: oklch(10.0% 0.01 255);
+        --color-focus: oklch(68.0% 0.22 255);
+      }
+    }
+
+    html, body {
+      overflow-x: clip;
+      background-color: var(--color-paper);
+      color: var(--color-ink);
+      font-family: var(--font-sans);
+      font-size: var(--text-body);
+      line-height: 1.6;
+      -webkit-font-smoothing: antialiased;
+      margin: 0;
+    }
+
+    a:focus-visible, button:focus-visible {
+      outline: 2px solid var(--color-focus);
+      outline-offset: 2px;
+    }
+
+    header.nav {
+      border-bottom: 1px solid var(--color-rule);
+      background: var(--color-paper);
+      position: sticky;
+      top: 0;
+      z-index: 50;
+      backdrop-filter: blur(12px);
+    }
+
+    .nav-container {
+      max-width: var(--max-width);
+      margin: 0 auto;
+      padding: var(--space-xs) var(--space-md);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .brand-link {
+      display: flex;
+      align-items: center;
+      gap: var(--space-xs);
+      font-weight: 700;
+      font-size: var(--text-lead);
+      color: var(--color-ink);
+      text-decoration: none;
+    }
+
+    .brand-logo-img {
+      width: 24px;
+      height: 24px;
+      aspect-ratio: 1 / 1;
+      display: block;
+    }
+
+    .version-pill {
+      font-family: var(--font-mono);
+      font-size: var(--text-xs);
+      color: var(--color-ink-muted);
+      background: var(--color-paper-alt);
+      border: 1px solid var(--color-rule);
+      padding: 2px 6px;
+      border-radius: var(--border-radius-sm);
+    }
+
+    .nav-links {
+      display: flex;
+      gap: var(--space-md);
+      list-style: none;
+      align-items: center;
+      margin: 0;
+      padding: 0;
+    }
+
+    .nav-links a {
+      color: var(--color-ink-muted);
+      font-size: var(--text-sm);
+      text-decoration: none;
+      transition: color var(--transition);
+    }
+
+    .nav-links a:hover {
+      color: var(--color-signal);
+    }
+
+    /* HERO - Visual Fold Budget (1280x800 compliant) */
+    .hero-section {
+      max-width: var(--max-width);
+      margin: 0 auto;
+      padding: var(--space-xl) var(--space-md) var(--space-lg);
+      display: grid;
+      grid-template-columns: minmax(0, 1.25fr) minmax(0, 0.95fr);
+      gap: var(--space-xl);
+      align-items: center;
+    }
+
+    .hero-title {
+      font-size: var(--text-display);
+      font-weight: 700;
+      line-height: 1.15;
+      letter-spacing: -0.02em;
+      color: var(--color-ink);
+      margin-bottom: var(--space-sm);
+      text-wrap: balance;
+      max-width: 20ch;
+    }
+
+    .hero-summary {
+      font-size: var(--text-lead);
+      color: var(--color-ink-muted);
+      margin-bottom: var(--space-md);
+      max-width: 48ch;
+      text-wrap: pretty;
+    }
+
+    .hero-actions {
+      display: flex;
+      gap: var(--space-xs);
+      flex-wrap: wrap;
+    }
+
+    .spec-card {
+      background: var(--color-paper-sunken);
+      border: 1px solid var(--color-rule);
+      border-radius: var(--border-radius);
+      padding: var(--space-md);
+      font-family: var(--font-mono);
+      font-size: var(--text-xs);
+      line-height: 1.7;
+    }
+
+    .spec-header {
+      font-size: var(--text-xs);
+      color: var(--color-ink-muted);
+      border-bottom: 1px solid var(--color-rule);
+      padding-bottom: var(--space-xs);
+      margin-bottom: var(--space-xs);
+      display: flex;
+      justify-content: space-between;
+    }
+
+    /* TELEMETRY ROW */
+    .telemetry-row {
+      max-width: var(--max-width);
+      margin: 0 auto;
+      padding: 0 var(--space-md) var(--space-xl);
+    }
+
+    .telemetry-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: var(--space-md);
+      border-top: 1px solid var(--color-rule);
+      border-bottom: 1px solid var(--color-rule);
+      padding: var(--space-md) 0;
+    }
+
+    .telemetry-metric {
+      padding: 0 var(--space-xs);
+    }
+
+    .telemetry-value {
+      font-family: var(--font-mono);
+      font-size: var(--text-display-s);
+      font-weight: 700;
+      color: var(--color-signal);
+      font-variant-numeric: tabular-nums;
+      line-height: 1.1;
+    }
+
+    .telemetry-label {
+      font-size: var(--text-xs);
+      color: var(--color-ink-muted);
+      margin-top: var(--space-xs);
+      text-transform: lowercase;
+    }
+
+    /* DOCUMENTATION LAYOUT */
+    .content-container {
+      max-width: var(--max-width);
+      margin: 0 auto;
+      padding: var(--space-md) var(--space-md) var(--space-3xl);
+      display: grid;
+      grid-template-columns: 220px minmax(0, 1fr);
+      gap: var(--space-xl);
+    }
+
+    .sidebar-toc {
+      position: sticky;
+      top: 5rem;
+      height: fit-content;
+    }
+
+    .toc-label {
+      font-size: var(--text-xs);
+      font-weight: 600;
+      color: var(--color-ink-faint);
+      margin-bottom: var(--space-xs);
+      font-family: var(--font-mono);
+    }
+
+    .sidebar-toc ul {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+    }
+
+    .sidebar-toc li a {
+      display: block;
+      padding: 6px 0;
+      font-size: var(--text-sm);
+      color: var(--color-ink-muted);
+      text-decoration: none;
+      transition: color var(--transition);
+    }
+
+    .sidebar-toc li a:hover {
+      color: var(--color-signal);
+    }
+
+    section.doc-section {
+      margin-bottom: var(--space-2xl);
+      scroll-margin-top: 5rem;
+    }
+
+    h2 {
+      font-size: var(--text-section);
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      color: var(--color-ink);
+      margin-bottom: var(--space-xs);
+      text-wrap: balance;
+      max-width: 30ch;
+    }
+
+    h3 {
+      font-size: var(--text-title);
+      font-weight: 600;
+      color: var(--color-ink);
+      margin-top: var(--space-md);
+      margin-bottom: var(--space-xs);
+      text-wrap: balance;
+      max-width: 40ch;
+    }
+
+    p {
+      color: var(--color-ink-muted);
+      margin-bottom: var(--space-sm);
+      max-width: 68ch;
+      text-wrap: pretty;
+    }
+
+    .code-terminal {
+      background: var(--color-paper-sunken);
+      border: 1px solid var(--color-rule);
+      border-radius: var(--border-radius);
+      margin: var(--space-sm) 0 var(--space-md);
+      font-family: var(--font-mono);
+      font-size: var(--text-xs);
+      overflow: hidden;
+    }
+
+    .code-terminal-bar {
+      padding: var(--space-xs) var(--space-sm);
+      background: var(--color-paper-alt);
+      border-bottom: 1px solid var(--color-rule);
+      display: flex;
+      justify-content: space-between;
+      font-size: var(--text-xs);
+      color: var(--color-ink-muted);
+    }
+
+    .code-terminal-body {
+      padding: var(--space-sm);
+      overflow-x: auto;
+      line-height: 1.6;
+    }
+
+    .terminal-prompt {
+      color: var(--color-ink-faint);
+      margin-right: var(--space-xs);
+      user-select: none;
+    }
+
+    .terminal-out {
+      color: var(--color-signal);
+      margin-top: var(--space-xs);
+      margin-bottom: var(--space-xs);
+    }
+
+    .brand-statement {
+      font-family: var(--font-sans);
+      font-size: var(--text-lead);
+      line-height: 1.4;
+      font-weight: 600;
+      color: var(--color-ink);
+      padding-left: var(--space-md);
+      border-left: 3px solid var(--color-signal);
+      margin: var(--space-lg) 0;
+      max-width: 52ch;
+      font-style: normal;
+    }
+
+    table.spec-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: var(--space-md) 0;
+      border: 1px solid var(--color-rule);
+      border-radius: var(--border-radius);
+      overflow: hidden;
+    }
+
+    table.spec-table th, table.spec-table td {
+      padding: var(--space-xs) var(--space-sm);
+      text-align: left;
+      font-size: var(--text-sm);
+      border-bottom: 1px solid var(--color-rule);
+    }
+
+    table.spec-table th {
+      background: var(--color-paper-alt);
+      color: var(--color-ink);
+      font-weight: 600;
+      font-size: var(--text-xs);
+    }
+
+    table.spec-table td code {
+      font-family: var(--font-mono);
+      font-size: var(--text-xs);
+      background: var(--color-paper-alt);
+      padding: 2px 5px;
+      border-radius: var(--border-radius-sm);
+      border: 1px solid var(--color-rule);
+    }
+
+    footer {
+      border-top: 1px solid var(--color-rule);
+      padding: var(--space-lg) var(--space-md);
+      font-size: var(--text-xs);
+      color: var(--color-ink-muted);
+      background: var(--color-paper-alt);
+    }
+
+    .footer-inner {
+      max-width: var(--max-width);
+      margin: 0 auto;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: var(--space-sm);
+    }
+
+    @media (max-width: 800px) {
+      .hero-section {
+        grid-template-columns: 1fr;
+        padding-top: var(--space-md);
+      }
+      .content-container {
+        grid-template-columns: 1fr;
+      }
+      .sidebar-toc {
+        display: none;
+      }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      *, ::before, ::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+        scroll-behavior: auto !important;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Brand Navigation -->
+  <header class="nav">
+    <div class="nav-container">
+      <a href="/" class="brand-link">
+        <img src="/logo.svg" alt="Citadel Mark" class="brand-logo-img" width="24" height="24">
+        <span>Citadel</span>
+        <span class="version-pill">v0.1.0</span>
+      </a>
+      <ul class="nav-links">
+        <li><a href="#why">Why</a></li>
+        <li><a href="#armory">The Armory</a></li>
+        <li><a href="#targets">Locations</a></li>
+        <li><a href="#commands">Commands</a></li>
+        <li><a href="#projects">Workspaces</a></li>
+        <li><a href="#npm">npm registry</a></li>
+        <li><a href="#security">Zero-knowledge</a></li>
+        <li><a href="#secrets">API keys</a></li>
+        <li><a href="https://github.com/kartikarora/citadel" class="btn btn-sm btn-primary">GitHub</a></li>
+      </ul>
+    </div>
+  </header>
+
+  <!-- Hero Section -->
+  <section class="hero-section">
+    <div>
+      <h1 class="hero-title">Keep your AI skills and MCP servers in one place.</h1>
+      <p class="hero-summary">Claude, Antigravity, and Cursor expect configs in conflicting directories. Citadel maintains your skills centrally in <code>~/.citadel</code> and symlinks them into every tool with zero overhead.</p>
+      <div class="hero-actions">
+        <a href="#install" class="btn btn-primary">Install Citadel</a>
+        <a href="#commands" class="btn btn-outline">CLI reference</a>
+      </div>
+    </div>
+
+    <div class="spec-card">
+      <div class="spec-header">
+        <span>Filesystem mapping</span>
+        <span>APFS Symlinks</span>
+      </div>
+      <div>~/.citadel/skills/hallmark/</div>
+      <div style="color: var(--color-ink-faint); margin: 6px 0;">// Linked directly to:</div>
+      <div>&nbsp;&nbsp;↳ ~/.gemini/config/skills/hallmark</div>
+      <div>&nbsp;&nbsp;↳ ~/.claude/skills/hallmark</div>
+      <div>&nbsp;&nbsp;↳ ~/Projects/my-app/.gemini/skills/hallmark</div>
+      <div>&nbsp;&nbsp;↳ ~/Projects/my-app/.claude/skills/hallmark</div>
+    </div>
+  </section>
+
+  <!-- Telemetry Row -->
+  <section class="telemetry-row">
+    <div class="telemetry-grid">
+      <div class="telemetry-metric">
+        <div class="telemetry-value">6</div>
+        <div class="telemetry-label">AI assistants supported</div>
+      </div>
+      <div class="telemetry-metric">
+        <div class="telemetry-value">0 ms</div>
+        <div class="telemetry-label">APFS symlink sync latency</div>
+      </div>
+      <div class="telemetry-metric">
+        <div class="telemetry-value">0 bytes</div>
+        <div class="telemetry-label">duplicate storage overhead</div>
+      </div>
+      <div class="telemetry-metric">
+        <div class="telemetry-value">100%</div>
+        <div class="telemetry-label">zero-knowledge private sync</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Main Content Container -->
+  <div class="content-container">
+    <aside class="sidebar-toc">
+      <div class="toc-label">Index</div>
+      <ul>
+        <li><a href="#why">Why this exists</a></li>
+        <li><a href="#armory">What is The Armory?</a></li>
+        <li><a href="#install">Installation</a></li>
+        <li><a href="#targets">Where files go</a></li>
+        <li><a href="#commands">Commands</a></li>
+        <li><a href="#projects">In-repo skills</a></li>
+        <li><a href="#npm">Using npm</a></li>
+        <li><a href="#security">Zero-knowledge & Rollback</a></li>
+        <li><a href="#secrets">API keys</a></li>
+      </ul>
+    </aside>
+
+    <main>
+      <section id="why" class="doc-section">
+        <h2>Why this exists</h2>
+        <p>If you use more than one coding assistant, you run into the same problem:</p>
+        <p>Antigravity stores skills in <code>~/.gemini/config/skills</code>. Claude Code expects them in <code>~/.claude/skills</code>. Cursor looks in <code>~/.cursor/skills</code>, Android Studio in <code>~/.android-studio/skills</code>, GitHub Copilot in <code>~/.copilot/skills</code>, and Junie in <code>~/.junie/skills</code>. Claude Desktop stores MCP server commands inside <code>claude_desktop_config.json</code> under Application Support. Projects often have their own <code>.gemini/</code> or <code>.claude/</code> folders checked into git.</p>
+        
+        <blockquote class="brand-statement">
+          "If you fix a bug in a skill inside one repo, that fix stays trapped there. If you add an MCP server to Claude, Antigravity does not know about it. Citadel solves this with native symlinks."
+        </blockquote>
+
+        <p>You keep one copy of each skill in <code>~/.citadel/skills</code>, and every tool points back to it.</p>
+      </section>
+
+      <section id="armory" class="doc-section">
+        <h2>What is The Armory?</h2>
+        <p><strong>The Armory</strong> is your single, canonical source of truth for all AI instructions, prompts, and MCP configurations. It lives at <code>~/.citadel/skills/</code>.</p>
+        <p>Instead of manually synchronizing files between editors, The Armory holds the master files. Citadel injects filesystem symbolic links (symlinks) into each tool:</p>
+        <div class="code-terminal">
+          <div class="code-terminal-bar">
+            <span>Architecture</span>
+            <span>APFS Symlinks</span>
+          </div>
+          <div class="code-terminal-body">
+            <div>~/.citadel/skills/my-skill &nbsp;&nbsp;&nbsp;&nbsp;<span style="color: var(--color-ink-faint);"># Master Canonical Copy</span></div>
+            <div style="color: var(--color-ink-faint); margin: 4px 0;">// Pointed to by zero-overhead symlinks:</div>
+            <div>&nbsp;&nbsp;├── ~/.gemini/skills/my-skill &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span style="color: var(--color-ink-faint);">(Antigravity)</span></div>
+            <div>&nbsp;&nbsp;├── ~/.claude/skills/my-skill &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span style="color: var(--color-ink-faint);">(Claude Code)</span></div>
+            <div>&nbsp;&nbsp;├── ~/.cursor/skills/my-skill &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span style="color: var(--color-ink-faint);">(Cursor)</span></div>
+            <div>&nbsp;&nbsp;├── ~/.android-studio/skills/my-skill <span style="color: var(--color-ink-faint);">(Android Studio)</span></div>
+            <div>&nbsp;&nbsp;├── ~/.copilot/skills/my-skill &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span style="color: var(--color-ink-faint);">(GitHub Copilot)</span></div>
+            <div>&nbsp;&nbsp;└── ~/.junie/skills/my-skill &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span style="color: var(--color-ink-faint);">(Junie)</span></div>
+          </div>
+        </div>
+        <p>Because these are symlinks, an edit made inside any editor or terminal updates the master file in The Armory instantly with <strong>zero sync latency</strong> and <strong>zero duplicate storage</strong>.</p>
+      </section>
+
+      <section id="install" class="doc-section">
+        <h2>Installation</h2>
+        <p>Citadel is written in Swift and compiles to a native Mac binary. It requires macOS Sonoma or later.</p>
+
+        <div class="code-terminal">
+          <div class="code-terminal-bar">
+            <span>Terminal</span>
+            <span>zsh</span>
+          </div>
+          <div class="code-terminal-body">
+            <div><span class="terminal-prompt">$</span>git clone https://github.com/kartikarora/citadel.git</div>
+            <div><span class="terminal-prompt">$</span>cd citadel && make install</div>
+            <div class="terminal-out">installed /usr/local/bin/citadel</div>
+            <div class="terminal-out">installed /usr/local/bin/ctdl</div>
+            <div><span class="terminal-prompt">$</span>ctdl init</div>
+            <div class="terminal-out">initialized ~/.citadel (git enabled)</div>
+          </div>
+        </div>
+      </section>
+
+      <section id="targets" class="doc-section">
+        <h2>Where files go</h2>
+        <p>When you run <code>ctdl sync</code>, Citadel updates these paths on your machine:</p>
+
+        <table class="spec-table">
+          <thead>
+            <tr>
+              <th>Assistant</th>
+              <th>Path</th>
+              <th>How it links</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Antigravity (Global)</td>
+              <td><code>~/.gemini/config/skills/</code></td>
+              <td>Symlink to <code>~/.citadel/skills/</code></td>
+            </tr>
+            <tr>
+              <td>Claude Code CLI</td>
+              <td><code>~/.claude/skills/</code></td>
+              <td>Symlink to <code>~/.citadel/skills/</code></td>
+            </tr>
+            <tr>
+              <td>Cursor</td>
+              <td><code>~/.cursor/skills/</code></td>
+              <td>Symlink to <code>~/.citadel/skills/</code></td>
+            </tr>
+            <tr>
+              <td>Android Studio</td>
+              <td><code>~/.android-studio/skills/</code></td>
+              <td>Symlink to <code>~/.citadel/skills/</code></td>
+            </tr>
+            <tr>
+              <td>GitHub Copilot</td>
+              <td><code>~/.copilot/skills/</code></td>
+              <td>Symlink to <code>~/.citadel/skills/</code></td>
+            </tr>
+            <tr>
+              <td>Junie</td>
+              <td><code>~/.junie/skills/</code></td>
+              <td>Symlink to <code>~/.citadel/skills/</code></td>
+            </tr>
+            <tr>
+              <td>Claude Desktop</td>
+              <td><code>~/Library/Application Support/Claude/claude_desktop_config.json</code></td>
+              <td>Injects into <code>mcpServers</code></td>
+            </tr>
+            <tr>
+              <td>Project Workspaces</td>
+              <td><code>&lt;repo&gt;/.citadel/skills/</code> or <code>.gemini/</code></td>
+              <td>Symlinks selected project skills</td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section id="commands" class="doc-section">
+        <h2>Commands</h2>
+        <p>You can run <code>citadel</code> or the shorthand <code>ctdl</code>:</p>
+
+        <div class="code-terminal">
+          <div class="code-terminal-bar">
+            <span>Terminal</span>
+            <span>ctdl</span>
+          </div>
+          <div class="code-terminal-body">
+            <div>ctdl list &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span style="color: var(--color-ink-faint);"># List skills, MCPs, and linked repos</span></div>
+            <div>ctdl sync &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span style="color: var(--color-ink-faint);"># Re-apply symlinks and commit changes</span></div>
+            <div>ctdl add skill &lt;path&gt; &nbsp;&nbsp;&nbsp;<span style="color: var(--color-ink-faint);"># Copy a skill folder into ~/.citadel</span></div>
+            <div>ctdl add mcp &lt;name&gt; &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span style="color: var(--color-ink-faint);"># Register an MCP server</span></div>
+            <div>ctdl portal . &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span style="color: var(--color-ink-faint);"># Symlink skills into current repo</span></div>
+            <div>ctdl search &lt;query&gt; &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span style="color: var(--color-ink-faint);"># Search npm for community skills</span></div>
+            <div>ctdl install &lt;pkg&gt; &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span style="color: var(--color-ink-faint);"># Download and unpack an npm skill</span></div>
+            <div>ctdl push / pull &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span style="color: var(--color-ink-faint);"># Sync ~/.citadel with your private Git remote</span></div>
+          </div>
+        </div>
+      </section>
+
+      <section id="projects" class="doc-section">
+        <h2>In-repo skills</h2>
+        <p>When you work in a team repository, you often do not want to commit personal skills to git. In your project folder, run:</p>
+
+        <div class="code-terminal">
+          <div class="code-terminal-bar">
+            <span>Terminal</span>
+            <span>Workspace</span>
+          </div>
+          <div class="code-terminal-body">
+            <div><span class="terminal-prompt">$</span>cd ~/Projects/my-app</div>
+            <div><span class="terminal-prompt">$</span>ctdl portal .</div>
+            <div class="terminal-out">Linked: my-app/.gemini/skills/hallmark -> ~/.citadel/skills/hallmark</div>
+            <div class="terminal-out">Linked: my-app/.claude/skills/hallmark -> ~/.citadel/skills/hallmark</div>
+          </div>
+        </div>
+        <p>Add <code>.gemini/</code> and <code>.claude/</code> to your global <code>~/.gitignore</code>. Both tools can now use your skills inside that project, and any edit you make updates your central copy in <code>~/.citadel</code>.</p>
+      </section>
+
+      <section id="npm" class="doc-section">
+        <h2>Using npm</h2>
+        <p>Citadel uses npm to distribute skills. There is no custom backend to sign up for.</p>
+        <p>Any npm package with <code>"keywords": ["citadel-skill"]</code> in its <code>package.json</code> can be found with <code>ctdl search</code> and installed with <code>ctdl install</code>:</p>
+
+        <div class="code-terminal">
+          <div class="code-terminal-bar">
+            <span>package.json</span>
+            <span>Skill author</span>
+          </div>
+          <div class="code-terminal-body">
+            <pre><code>{
+  "name": "@developer/citadel-skill-kubernetes",
+  "version": "1.0.4",
+  "keywords": ["citadel-skill"],
+  "files": ["SKILL.md", "scripts/"]
+}</code></pre>
+          </div>
+        </div>
+        <p>When you run <code>ctdl install @developer/citadel-skill-kubernetes</code>, Citadel downloads the archive, puts the files in <code>~/.citadel/skills/kubernetes</code>, and links them to Antigravity and Claude.</p>
+      </section>
+
+      <section id="security" class="doc-section">
+        <h2>Zero-Knowledge Cloud Sync & Emergency Rollback</h2>
+        <p>Citadel is architected with a strict <strong>zero-knowledge policy</strong>. There are no Citadel cloud servers or databases. When you configure Cloud Sync:</p>
+        <ul style="padding-left: var(--space-md); margin-bottom: var(--space-sm); color: var(--color-ink-muted);">
+          <li>Sync communicates directly between your Mac and your own private GitHub/GitLab repository over HTTPS.</li>
+          <li>All repository commits are signed with an Ed25519 key generated locally and kept in your macOS Keychain.</li>
+          <li>Citadel only creates or accesses your dedicated <code>citadel-sync</code> repo; it never reads your other private repositories.</li>
+        </ul>
+
+        <h3>Emergency Rollback / Decoupling ("Eject")</h3>
+        <p>Because your AI assistants depend on symlinks pointing to <code>~/.citadel/skills/</code>, deleting Citadel without unlinking could cause broken references. Citadel provides two layers of protection:</p>
+        <ol style="padding-left: var(--space-md); margin-bottom: var(--space-sm); color: var(--color-ink-muted);">
+          <li><strong>Cloud Recovery:</strong> Your skills are preserved safely in your personal Git repo, recoverable on any Mac.</li>
+          <li><strong>Eject & Materialize:</strong> You can click "EJECT & MATERIALIZE" in Settings or run the standalone script at <code>~/.citadel/rollback.sh</code>. Citadel instantly decouples from all tools by converting symlinks into real, independent folder copies.</li>
+        </ol>
+      </section>
+
+      <section id="secrets" class="doc-section">
+        <h2>API keys</h2>
+        <p>Many MCP servers need tokens like <code>GITHUB_TOKEN</code>. Putting real tokens in JSON files risks committing them to Git.</p>
+        <p>In Citadel, use <code>${VAR_NAME}</code> inside MCP JSON definitions:</p>
+
+        <div class="code-terminal">
+          <div class="code-terminal-bar">
+            <span>~/.citadel/mcps/github.json</span>
+            <span>JSON</span>
+          </div>
+          <div class="code-terminal-body">
+            <pre><code>{
+  "name": "github",
+  "command": "npx",
+  "args": ["-y", "@modelcontextprotocol/server-github"],
+  "env": {
+    "GITHUB_PERSONAL_ACCESS_TOKEN": "${GITHUB_TOKEN}"
+  }
+}</code></pre>
+          </div>
+        </div>
+        <p>Citadel reads <code>$GITHUB_TOKEN</code> from your shell environment or macOS Keychain when generating configs for Claude and Antigravity. The Git repository in <code>~/.citadel</code> only ever stores the variable name.</p>
+      </section>
+    </main>
+  </div>
+
+  <footer>
+    <div class="footer-inner">
+      <span>Citadel &bull; <a href="https://citadel.kartikarora.me" style="color: var(--color-signal); text-decoration: none;">citadel.kartikarora.me</a></span>
+      <span>Swift 6 &bull; macOS &bull; MIT License</span>
+    </div>
+  </footer>
+
+</body>
+</html>

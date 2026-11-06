@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
+  <!-- Concept B: The Monogram Bastion (Geometric 'C' Shield) -->
+  <!-- Bold architectural faceted C forming a fortified vault -->
+  <path fill-rule="evenodd" clip-rule="evenodd" fill="#000000" d="
+    M 128,24
+    L 216,68
+    L 216,112
+    L 164,112
+    L 164,88
+    L 128,70
+    L 84,92
+    L 84,164
+    L 128,186
+    L 164,168
+    L 164,144
+    L 216,144
+    L 216,188
+    L 128,232
+    L 40,188
+    L 40,68
+    Z
+  "/>
+</svg>

@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Citadel — Authorization Callback</title>
+  
+  <!-- Mandatory Brand CDN Assets -->
+  <link href="https://distribute.kartikarora.me/css/kartikarora.css" rel="stylesheet">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Albert+Sans:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet">
+  <script src="https://distribute.kartikarora.me/js/kartikarora.js" defer></script>
+  
+  <link rel="icon" href="/favicon.ico" sizes="48x48">
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+  <link rel="manifest" href="/site.webmanifest">
+  
+  <style>
+    :root {
+      --color-paper: oklch(14.0% 0.012 255);
+      --color-paper-alt: oklch(18.5% 0.016 255);
+      --color-paper-sunken: oklch(11.0% 0.010 255);
+      --color-ink: oklch(94.0% 0.015 255);
+      --color-ink-muted: oklch(72.0% 0.020 255);
+      --color-ink-faint: oklch(48.0% 0.018 255);
+      --color-rule: oklch(24.0% 0.018 255);
+      --color-rule-strong: oklch(34.0% 0.025 255);
+      --color-signal: oklch(68.0% 0.22 255);
+      --color-signal-hover: oklch(74.0% 0.20 255);
+      --color-signal-wash: oklch(68.0% 0.22 255 / 0.14);
+      --color-signal-ink: oklch(10.0% 0.01 255);
+      --color-focus: oklch(68.0% 0.22 255);
+    }
+
+    html, body {
+      overflow-x: clip;
+      background-color: var(--color-paper);
+      color: var(--color-ink);
+      font-family: var(--font-sans);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      margin: 0;
+    }
+
+    .callback-card {
+      background: var(--color-paper-alt);
+      border: 1px solid var(--color-rule);
+      border-radius: var(--border-radius);
+      padding: var(--space-xl) var(--space-xl);
+      text-align: center;
+      max-width: var(--max-width-narrow);
+      box-shadow: 0 16px 32px var(--shadow);
+    }
+
+    .callback-icon {
+      width: 48px;
+      height: 48px;
+      aspect-ratio: 1 / 1;
+      background: var(--color-signal-wash);
+      color: var(--color-signal);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 24px;
+      margin: 0 auto var(--space-md);
+    }
+
+    .callback-title {
+      font-size: var(--text-title);
+      margin-bottom: var(--space-xs);
+      font-weight: 700;
+      color: var(--color-ink);
+      text-wrap: balance;
+    }
+
+    .callback-desc {
+      color: var(--color-ink-muted);
+      font-size: var(--text-sm);
+      line-height: 1.5;
+      margin-bottom: var(--space-lg);
+      text-wrap: pretty;
+    }
+
+    .callback-code {
+      font-family: var(--font-mono);
+      font-size: var(--text-xs);
+      background: var(--color-paper-sunken);
+      padding: var(--space-xs) var(--space-sm);
+      border-radius: var(--border-radius-sm);
+      border: 1px solid var(--color-rule);
+      color: var(--color-signal);
+      display: inline-block;
+    }
+
+    a:focus-visible, button:focus-visible {
+      outline: 2px solid var(--color-focus);
+      outline-offset: 2px;
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      *, ::before, ::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+        scroll-behavior: auto !important;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="callback-card">
+    <div class="callback-icon">
+      <span class="material-symbols-outlined">check_circle</span>
+    </div>
+    <h1 class="callback-title">Citadel Authorization Complete</h1>
+    <p class="callback-desc">Your authentication request was processed. You can close this window and return to the Citadel desktop application.</p>
+    <div class="callback-code">citadel://auth/callback</div>
+  </div>
+</body>
+</html>

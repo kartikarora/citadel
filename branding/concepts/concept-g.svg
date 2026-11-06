@@ -1,0 +1,45 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
+  <!-- Concept G: The Emerald Armor (Fortress Bastion + Cyber Emerald #10b981) -->
+  <!-- Deep Jet Shell -->
+  <path fill="#090d16" d="
+    M 128,24
+    L 218,68
+    L 218,188
+    L 128,232
+    L 38,188
+    L 38,68
+    Z
+  "/>
+  <!-- Dark Slate Secondary Bevel -->
+  <path fill="#161f30" d="
+    M 128,46
+    L 200,82
+    L 200,174
+    L 128,210
+    L 56,174
+    L 56,82
+    Z
+  "/>
+  <!-- Glowing Emerald Monogram 'C' (#10b981) -->
+  <path fill="#10b981" d="
+    M 128,68
+    L 182,95
+    L 182,120
+    L 150,120
+    L 150,111
+    L 128,100
+    L 94,117
+    L 94,151
+    L 128,168
+    L 150,157
+    L 150,148
+    L 182,148
+    L 182,173
+    L 128,200
+    L 74,173
+    L 74,95
+    Z
+  "/>
+  <!-- Central Core Data Spark -->
+  <rect x="123" y="129" width="10" height="10" rx="2" fill="#a7f3d0"/>
+</svg>

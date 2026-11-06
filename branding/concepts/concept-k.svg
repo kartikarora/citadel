@@ -1,0 +1,49 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
+  <!-- Concept K: The Agent Armory (Crenellated Fortress Crown with Nested AI Intelligence Core) -->
+  <!-- Outer Battlement C-Shape Armor (#0b0f19) -->
+  <path fill="#0b0f19" d="
+    M 44,40
+    L 92,40
+    L 92,76
+    L 116,76
+    L 116,40
+    L 140,40
+    L 140,76
+    L 164,76
+    L 164,40
+    L 212,40
+    L 212,148
+    C 212,192 176,224 128,232
+    C 80,224 44,192 44,148
+    Z
+    M 76,88
+    L 76,144
+    C 76,174 98,198 128,206
+    C 158,198 180,174 180,144
+    L 180,88
+    Z
+  "/>
+  
+  <!-- Glowing Hexagonal Skill Lattice (#6366f1) -->
+  <path fill="#232742" stroke="#6366f1" stroke-width="3" d="
+    M 128,94
+    L 162,114
+    L 162,154
+    L 128,174
+    L 94,154
+    L 94,114
+    Z
+  "/>
+
+  <!-- AI Intelligence Core (Four-Pointed Spark in Electric Indigo #818cf8) -->
+  <path fill="#818cf8" d="
+    M 128,104
+    C 128,124 135,134 156,134
+    C 135,134 128,144 128,164
+    C 128,144 121,134 100,134
+    C 121,134 128,124 128,104
+    Z
+  "/>
+  <!-- Central White Light Sparkle -->
+  <circle cx="128" cy="134" r="3.5" fill="#ffffff"/>
+</svg>
