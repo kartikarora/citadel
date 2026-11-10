@@ -3,7 +3,7 @@ import CitadelCore
 import CitadelUI
 
 @MainActor
-func runAllCitadelTests() throws {
+func runAllCitadelTests() async throws {
     var passedCount = 0
     var totalCount = 0
     
@@ -306,6 +306,21 @@ func runAllCitadelTests() throws {
     expect(detailView.portals.first?.enabledSkills.contains("git-advanced") == true, "SkillDetailView detects enabled skills for portal")
     detailView.onToggleWorkspacePortal?(testPortalDir)
     expect(toggledWorkspaceURL?.path == testPortalDir.path, "SkillDetailView triggers onToggleWorkspacePortal callback")
+    
+    // Test accompanying files detection and SkillPackageNode scanning
+    let subRefDir = testSkillDir.appendingPathComponent("references")
+    try FileManager.default.createDirectory(at: subRefDir, withIntermediateDirectories: true)
+    try "# Reference Guide".write(to: subRefDir.appendingPathComponent("guide.md"), atomically: true, encoding: .utf8)
+    try "echo hello".write(to: testSkillDir.appendingPathComponent("helper.sh"), atomically: true, encoding: .utf8)
+    
+    let scannedAccompanying = discoveryVM.selectedSkill!.accompanyingFiles
+    expect(scannedAccompanying.contains("references"), "accompanyingFiles detects subdirectories")
+    expect(scannedAccompanying.contains("helper.sh"), "accompanyingFiles detects accompanying script files")
+    expect(!scannedAccompanying.contains("SKILL.md"), "accompanyingFiles filters out primary SKILL.md")
+    
+    let scannedPackageNodes = SkillPackageNode.scan(rootURL: testSkillDir)
+    expect(scannedPackageNodes.contains(where: { $0.name == "references" && $0.isDirectory }), "SkillPackageNode scans references directory")
+    expect(scannedPackageNodes.contains(where: { $0.name == "helper.sh" && !$0.isDirectory }), "SkillPackageNode scans helper.sh file")
     
     // Suite 11: Sync Marker Manifest & Onboarding Re-use Repo Flow
     print("\n[Suite 11/11: SyncMarker & Onboarding Repo Re-use Flow]")

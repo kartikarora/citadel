@@ -2989,6 +2989,23 @@ struct ArmoryChamber: View {
                                         }
                                     }
                                     .padding(.top, 2)
+                                    
+                                    // Row 4: Accompanying files (references, scripts, assets, etc.)
+                                    let accompanying = skill.accompanyingFiles
+                                    if !accompanying.isEmpty {
+                                        HStack(spacing: 4) {
+                                            Image(systemName: "folder")
+                                                .font(.system(size: 9))
+                                                .foregroundColor(store.palette.textMuted)
+                                            
+                                            Text(accompanying.joined(separator: ", "))
+                                                .font(.brandMonoMicro)
+                                                .foregroundColor(store.palette.textMuted)
+                                                .lineLimit(1)
+                                                .truncationMode(.tail)
+                                        }
+                                        .padding(.top, 1)
+                                    }
                                 }
                                 .padding(.horizontal, BrandSpacing.md)
                                 .padding(.vertical, BrandSpacing.sm)

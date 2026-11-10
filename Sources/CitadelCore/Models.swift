@@ -70,6 +70,12 @@ public struct Skill: Identifiable, Codable, Sendable, Hashable {
         self.argumentHint = argumentHint
         self.icon = icon
     }
+    
+    /// Immediate accompanying files or directories inside the skill package (excluding SKILL.md and hidden files)
+    public var accompanyingFiles: [String] {
+        guard let items = try? FileManager.default.contentsOfDirectory(atPath: path.path) else { return [] }
+        return items.filter { !$0.hasPrefix(".") && $0.lowercased() != "skill.md" }.sorted()
+    }
 }
 
 /// An MCP Server definition (Canonical)
