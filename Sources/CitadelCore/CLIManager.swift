@@ -25,16 +25,24 @@ public final class CLIManager: @unchecked Sendable {
         // 1. App Bundle Resources / MacOS
         let bundleURL = Bundle.main.bundleURL
         searchPaths.append(bundleURL.appendingPathComponent("Contents/MacOS"))
+        searchPaths.append(bundleURL.appendingPathComponent("Contents/Resources/bin"))
         searchPaths.append(bundleURL.appendingPathComponent("Contents/Resources"))
         
-        // 2. Executable parent directory (when running from .build/debug or .build/release)
+        // 2. Main bundle executable parent directory (when running standalone or in development)
+        if let mainExec = Bundle.main.executableURL {
+            searchPaths.append(mainExec.deletingLastPathComponent())
+        }
+        
+        // 3. Executable parent directory (when running from .build/debug or .build/release)
         let execDir = bundleURL.deletingLastPathComponent()
         searchPaths.append(execDir)
         
-        // 3. Known build output directories
+        // 4. Known build output directories relative to current working directory
         let currentDir = URL(fileURLWithPath: fileManager.currentDirectoryPath)
         searchPaths.append(currentDir.appendingPathComponent(".build/debug"))
         searchPaths.append(currentDir.appendingPathComponent(".build/release"))
+        searchPaths.append(currentDir.appendingPathComponent(".build/arm64-apple-macosx/debug"))
+        searchPaths.append(currentDir.appendingPathComponent(".build/arm64-apple-macosx/release"))
         
         var foundCitadel: URL? = nil
         var foundCtdl: URL? = nil
@@ -50,11 +58,19 @@ public final class CLIManager: @unchecked Sendable {
             }
         }
         
+        // If one is found and the other isn't, they share identical entry points so either can serve as both
+        if foundCitadel == nil && foundCtdl != nil {
+            foundCitadel = foundCtdl
+        } else if foundCtdl == nil && foundCitadel != nil {
+            foundCtdl = foundCitadel
+        }
+        
         return (foundCitadel, foundCtdl)
     }
     
-    /// Installs citadel & ctdl symlinks into ~/.local/bin (explicit opt-in)
-    public func installCLI() throws {
+    /// Installs citadel & ctdl binaries or symlinks into ~/.local/bin (explicit opt-in)
+    @discardableResult
+    public func installCLI() throws -> (citadelInstalled: Bool, ctdlInstalled: Bool) {
         let binDir = preferredInstallDir
         if !fileManager.fileExists(atPath: binDir.path) {
             try fileManager.createDirectory(at: binDir, withIntermediateDirectories: true)
@@ -62,7 +78,7 @@ public final class CLIManager: @unchecked Sendable {
         
         let bins = findCLIBinaries()
         guard let citSrc = bins.citadel, let ctdlSrc = bins.ctdl else {
-            throw NSError(domain: "Citadel", code: 404, userInfo: [NSLocalizedDescriptionKey: "Could not locate compiled citadel/ctdl binaries to install."])
+            throw NSError(domain: "Citadel", code: 404, userInfo: [NSLocalizedDescriptionKey: "Could not locate compiled citadel/ctdl binaries to install. Please build or install from the app package."])
         }
         
         let citDest = binDir.appendingPathComponent("citadel")
@@ -72,11 +88,15 @@ public final class CLIManager: @unchecked Sendable {
             try? fileManager.removeItem(at: citDest)
         }
         try fileManager.copyItem(at: citSrc, to: citDest)
+        try? fileManager.setAttributes([.posixPermissions: 0o755], ofItemAtPath: citDest.path)
         
         if fileManager.fileExists(atPath: ctdlDest.path) {
             try? fileManager.removeItem(at: ctdlDest)
         }
         try fileManager.copyItem(at: ctdlSrc, to: ctdlDest)
+        try? fileManager.setAttributes([.posixPermissions: 0o755], ofItemAtPath: ctdlDest.path)
+        
+        return (true, true)
     }
     
     /// Uninstalls citadel & ctdl from ~/.local/bin

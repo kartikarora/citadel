@@ -35,6 +35,9 @@ func runAllCitadelTests() throws {
     
     let expanded = CitadelUtils.expandTildePath("~/.citadel")
     expect(!expanded.hasPrefix("~") && expanded.hasSuffix("/.citadel"), "Tilde path expansion succeeds")
+    
+    expect(CitadelConstants.Web.docsURL.absoluteString == "https://citadel.kartikarora.me/#cli", "Citadel docs URL targets web CLI documentation anchor")
+    expect(CitadelConstants.Web.homepageURL.absoluteString == "https://citadel.kartikarora.me/", "Citadel homepage URL verified")
 
     // Suite 2: GitAuthProvider & App Installation URLs
     print("\n[Suite 2/6: GitAuthProvider & App Flow]")

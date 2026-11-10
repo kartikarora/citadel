@@ -635,6 +635,8 @@ final class CitadelStore: ObservableObject {
     @Published var repoCreationError: String? = nil
     @Published var isCreatingRepo: Bool = false
     @Published var rollbackNotice: String = ""
+    @Published var cliInstallationNotice: String = ""
+    @Published var cliErrorMessage: String? = nil
     
     // Existing Sync Repo Detection & Re-use Prompt (Identified by SyncMarker, not by name)
     @Published var existingSyncRepoFound: Bool = false
@@ -655,6 +657,41 @@ final class CitadelStore: ObservableObject {
             }
         } catch {
             self.rollbackNotice = "Rollback error: \(error.localizedDescription)"
+        }
+    }
+    
+    func installCLI() {
+        do {
+            _ = try CLIManager.shared.installCLI()
+            self.cliInstallationNotice = "Installed to ~/.local/bin"
+            self.cliErrorMessage = nil
+            self.objectWillChange.send()
+            DispatchQueue.main.asyncAfter(deadline: .now() + 3.5) {
+                self.cliInstallationNotice = ""
+            }
+        } catch {
+            self.cliErrorMessage = error.localizedDescription
+            self.cliInstallationNotice = ""
+            DispatchQueue.main.asyncAfter(deadline: .now() + 5.0) {
+                self.cliErrorMessage = nil
+            }
+        }
+    }
+    
+    func uninstallCLI() {
+        do {
+            try CLIManager.shared.uninstallCLI()
+            self.cliInstallationNotice = "Uninstalled from ~/.local/bin"
+            self.cliErrorMessage = nil
+            self.objectWillChange.send()
+            DispatchQueue.main.asyncAfter(deadline: .now() + 3.5) {
+                self.cliInstallationNotice = ""
+            }
+        } catch {
+            self.cliErrorMessage = error.localizedDescription
+            DispatchQueue.main.asyncAfter(deadline: .now() + 5.0) {
+                self.cliErrorMessage = nil
+            }
         }
     }
     
@@ -3171,46 +3208,85 @@ struct SettingsChamber: View {
                     Divider().background(store.palette.border.opacity(0.3))
                     
                     // Optional CLI Installation Card
-                    HStack {
-                        VStack(alignment: .leading, spacing: 2) {
-                            HStack(spacing: 6) {
-                                Text("Command Line Interface (CLI)")
-                                    .font(.brandBodyBold)
-                                    .foregroundColor(store.palette.textPrimary)
-                                Text(CLIManager.shared.isInstalled ? "INSTALLED" : "OPTIONAL")
-                                    .font(.brandMonoMicro)
-                                    .foregroundColor(CLIManager.shared.isInstalled ? store.palette.accent : store.palette.textMuted)
-                                    .padding(.horizontal, 6)
-                                    .padding(.vertical, 2)
-                                    .background(CLIManager.shared.isInstalled ? store.palette.accentMuted : Color.clear)
-                                    .clipShape(BrandShapes.pill)
+                    VStack(alignment: .leading, spacing: BrandSpacing.xs) {
+                        HStack {
+                            VStack(alignment: .leading, spacing: 2) {
+                                HStack(spacing: 6) {
+                                    Text("Command Line Interface (CLI)")
+                                        .font(.brandBodyBold)
+                                        .foregroundColor(store.palette.textPrimary)
+                                    Text(CLIManager.shared.isInstalled ? "INSTALLED" : "OPTIONAL")
+                                        .font(.brandMonoMicro)
+                                        .foregroundColor(CLIManager.shared.isInstalled ? store.palette.accent : store.palette.textMuted)
+                                        .padding(.horizontal, 6)
+                                        .padding(.vertical, 2)
+                                        .background(CLIManager.shared.isInstalled ? store.palette.accentMuted : Color.clear)
+                                        .clipShape(BrandShapes.pill)
+                                }
+                                Text(CLIManager.shared.isInstalled ? "citadel and ctdl are installed in ~/.local/bin." : "Install 'citadel' and 'ctdl' commands into ~/.local/bin (never forced).")
+                                    .font(.brandCaption)
+                                    .foregroundColor(store.palette.textMuted)
                             }
-                            Text(CLIManager.shared.isInstalled ? "citadel and ctdl are installed in ~/.local/bin." : "Install 'citadel' and 'ctdl' commands into ~/.local/bin (never forced).")
-                                .font(.brandCaption)
-                                .foregroundColor(store.palette.textMuted)
+                            Spacer()
+                            
+                            HStack(spacing: BrandSpacing.xs) {
+                                // View CLI Docs in default browser
+                                Button(action: {
+                                    NSWorkspace.shared.open(CitadelConstants.Web.docsURL)
+                                }) {
+                                    HStack(spacing: 4) {
+                                        Image(systemName: "book.pages")
+                                        Text("View Docs")
+                                    }
+                                    .font(.brandMonoBadge)
+                                    .foregroundColor(store.palette.textSecondary)
+                                    .padding(.horizontal, BrandSpacing.sm)
+                                    .padding(.vertical, BrandSpacing.xxs)
+                                    .liquidGlassPill()
+                                }
+                                .buttonStyle(.plain)
+                                
+                                if CLIManager.shared.isInstalled {
+                                    Button("Uninstall CLI") {
+                                        store.uninstallCLI()
+                                    }
+                                    .font(.brandMonoBadge)
+                                    .foregroundColor(Color.red.opacity(0.8))
+                                    .padding(.horizontal, BrandSpacing.sm)
+                                    .padding(.vertical, BrandSpacing.xxs)
+                                    .buttonStyle(.plain)
+                                } else {
+                                    Button("Install CLI") {
+                                        store.installCLI()
+                                    }
+                                    .font(.brandMonoBadge)
+                                    .foregroundColor(store.palette.accent)
+                                    .padding(.horizontal, BrandSpacing.sm)
+                                    .padding(.vertical, BrandSpacing.xxs)
+                                    .liquidGlassPill(tint: store.palette.accent)
+                                    .buttonStyle(.plain)
+                                }
+                            }
                         }
-                        Spacer()
-                        if CLIManager.shared.isInstalled {
-                            Button("Uninstall CLI") {
-                                try? CLIManager.shared.uninstallCLI()
-                                store.objectWillChange.send()
+                        
+                        if !store.cliInstallationNotice.isEmpty {
+                            HStack(spacing: 4) {
+                                Image(systemName: "checkmark.circle.fill")
+                                    .foregroundColor(store.palette.accent)
+                                Text(store.cliInstallationNotice)
+                                    .font(.brandMonoMicro)
+                                    .foregroundColor(store.palette.accent)
                             }
-                            .font(.brandMonoBadge)
-                            .foregroundColor(store.palette.textMuted)
-                            .padding(.horizontal, BrandSpacing.sm)
-                            .padding(.vertical, BrandSpacing.xxs)
-                            .buttonStyle(.plain)
-                        } else {
-                            Button("Install CLI") {
-                                try? CLIManager.shared.installCLI()
-                                store.objectWillChange.send()
+                            .padding(.top, 2)
+                        } else if let errorMsg = store.cliErrorMessage {
+                            HStack(spacing: 4) {
+                                Image(systemName: "exclamationmark.triangle.fill")
+                                    .foregroundColor(Color.red)
+                                Text(errorMsg)
+                                    .font(.brandMonoMicro)
+                                    .foregroundColor(Color.red)
                             }
-                            .font(.brandMonoBadge)
-                            .foregroundColor(store.palette.accent)
-                            .padding(.horizontal, BrandSpacing.sm)
-                            .padding(.vertical, BrandSpacing.xxs)
-                            .liquidGlassPill(tint: store.palette.accent)
-                            .buttonStyle(.plain)
+                            .padding(.top, 2)
                         }
                     }
                     

@@ -56,6 +56,12 @@ public enum CitadelConstants {
         public static let gitlabUserProjectsAPI = "https://gitlab.com/api/v4/projects"
     }
     
+    // MARK: - Web & Documentation
+    public enum Web {
+        public static let homepageURL = URL(string: "https://citadel.kartikarora.me/")!
+        public static let docsURL = URL(string: "https://citadel.kartikarora.me/#cli")!
+    }
+    
     // MARK: - UserDefaults Storage Keys
     public enum StorageKeys {
         public static let themePreset = "themePreset"

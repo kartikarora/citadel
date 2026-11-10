@@ -10,16 +10,28 @@ APP_BUNDLE="${BUILD_DIR}/${APP_NAME}.app"
 DMG_NAME="${APP_NAME}-${VERSION}-macOS-arm64.dmg"
 OUTPUT_DIR="dist"
 
-echo "==> Building Citadel in release mode..."
+echo "==> Building Citadel App and CLI tools in release mode..."
 swift build -c release --product CitadelApp
+swift build -c release --product citadel
+swift build -c release --product ctdl
 
 echo "==> Creating macOS App Bundle..."
 rm -rf "${APP_BUNDLE}"
 mkdir -p "${APP_BUNDLE}/Contents/MacOS"
-mkdir -p "${APP_BUNDLE}/Contents/Resources"
+mkdir -p "${APP_BUNDLE}/Contents/Resources/bin"
 
 cp "${BUILD_DIR}/CitadelApp" "${APP_BUNDLE}/Contents/MacOS/${APP_NAME}"
 chmod +x "${APP_BUNDLE}/Contents/MacOS/${APP_NAME}"
+
+# Embed CLI executables
+if [ -f "${BUILD_DIR}/citadel" ]; then
+    cp "${BUILD_DIR}/citadel" "${APP_BUNDLE}/Contents/Resources/bin/citadel"
+    chmod +x "${APP_BUNDLE}/Contents/Resources/bin/citadel"
+fi
+if [ -f "${BUILD_DIR}/ctdl" ]; then
+    cp "${BUILD_DIR}/ctdl" "${APP_BUNDLE}/Contents/Resources/bin/ctdl"
+    chmod +x "${APP_BUNDLE}/Contents/Resources/bin/ctdl"
+fi
 
 # Embed App Icon
 if [ -f "branding/AppIcon.icns" ]; then
