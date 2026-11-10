@@ -38,6 +38,10 @@ func runAllCitadelTests() throws {
     
     expect(CitadelConstants.Web.docsURL.absoluteString == "https://citadel.kartikarora.me/#cli", "Citadel docs URL targets web CLI documentation anchor")
     expect(CitadelConstants.Web.homepageURL.absoluteString == "https://citadel.kartikarora.me/", "Citadel homepage URL verified")
+    
+    // CLIManager completion shells supported
+    let allShells = CLIManager.Shell.allCases
+    expect(allShells.contains(.zsh) && allShells.contains(.bash) && allShells.contains(.fish), "CLIManager supports zsh, bash, and fish autocompletions")
 
     // Suite 2: GitAuthProvider & App Installation URLs
     print("\n[Suite 2/6: GitAuthProvider & App Flow]")

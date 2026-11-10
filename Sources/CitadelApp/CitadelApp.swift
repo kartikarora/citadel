@@ -663,10 +663,11 @@ final class CitadelStore: ObservableObject {
     func installCLI() {
         do {
             _ = try CLIManager.shared.installCLI()
-            self.cliInstallationNotice = "Installed to ~/.local/bin"
+            _ = CLIManager.shared.installAutocompletion()
+            self.cliInstallationNotice = "Installed to ~/.local/bin with shell autocompletions"
             self.cliErrorMessage = nil
             self.objectWillChange.send()
-            DispatchQueue.main.asyncAfter(deadline: .now() + 3.5) {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 4.0) {
                 self.cliInstallationNotice = ""
             }
         } catch {
