@@ -164,7 +164,7 @@ func runAllCitadelTests() throws {
     let testFlagDefaults = UserDefaults(suiteName: "test_flags_\(UUID().uuidString)")!
     let flags = FeatureFlags(testDefaults: testFlagDefaults)
     
-    expect(flags.npmMarketplaceEnabled == false, "Marketplace flag defaults to OFF")
+    expect(flags.npmMarketplaceEnabled == true, "Skills manager flag defaults to ON")
     expect(flags.mcpSyncEnabled == false, "MCP sync flag defaults to OFF")
     expect(flags.githubIntegrationEnabled == true, "GitHub integration flag defaults to ON")
     expect(flags.gitlabIntegrationEnabled == false, "GitLab integration flag defaults to OFF")
@@ -174,13 +174,13 @@ func runAllCitadelTests() throws {
     expect(flags.includeBuiltinInDiscoveryEnabled == false, "Include builtin in discovery flag defaults to OFF")
     
     // Toggle state and persistence
-    flags.npmMarketplaceEnabled = true
+    flags.npmMarketplaceEnabled = false
     flags.gitlabIntegrationEnabled = true
-    expect(testFlagDefaults.bool(forKey: FeatureFlags.Keys.npmMarketplace) == true, "Marketplace toggle persists in defaults")
+    expect(testFlagDefaults.bool(forKey: FeatureFlags.Keys.npmMarketplace) == false, "Marketplace toggle persists in defaults")
     expect(testFlagDefaults.bool(forKey: FeatureFlags.Keys.gitlabIntegration) == true, "GitLab toggle persists in defaults")
     
     flags.resetToDefaults()
-    expect(flags.npmMarketplaceEnabled == false, "Reset restores marketplace to false")
+    expect(flags.npmMarketplaceEnabled == true, "Reset restores skills manager to true")
     expect(flags.gitlabIntegrationEnabled == false, "Reset restores gitlab to false")
     
     // Suite 8: Onboarding In-Flight State & Re-testing
