@@ -57,8 +57,9 @@ public final class MultiverseDiscoveryEngine: @unchecked Sendable {
     private let paths = UniversalPaths.shared
     
     /// Runs a full discovery pass across skills, MCP servers, and workspaces (Synchronous)
-    public func runFullDiscovery(workspaceRoots: [URL]? = nil) -> MultiverseDiscoveryReport {
-        let skills = SkillDiscoveryEngine.shared.discoverSkills(in: paths.knownClientRoots)
+    public func runFullDiscovery(skillRoots: [URL]? = nil, workspaceRoots: [URL]? = nil) -> MultiverseDiscoveryReport {
+        let scanRoots = skillRoots ?? paths.knownClientRoots
+        let skills = SkillDiscoveryEngine.shared.discoverSkills(in: scanRoots)
         let mcps = discoverMCPServers()
         let workspaces = discoverWorkspaces(searchRoots: workspaceRoots ?? paths.defaultWorkspaceRoots)
         return MultiverseDiscoveryReport(skills: skills, mcps: mcps, workspaces: workspaces)
@@ -66,6 +67,7 @@ public final class MultiverseDiscoveryEngine: @unchecked Sendable {
     
     /// Runs a full discovery pass completely off the main thread with progressive streaming callbacks
     public func runFullDiscoveryAsync(
+        skillRoots: [URL]? = nil,
         workspaceRoots: [URL]? = nil,
         onPartialUpdate: (@Sendable (MultiverseDiscoveryReport) -> Void)? = nil
     ) async -> MultiverseDiscoveryReport {
@@ -77,7 +79,8 @@ public final class MultiverseDiscoveryEngine: @unchecked Sendable {
             onPartialUpdate?(MultiverseDiscoveryReport(skills: [], mcps: mcps, workspaces: []))
             
             // 2. Client skills discovery
-            let skills = SkillDiscoveryEngine.shared.discoverSkills(in: self.paths.knownClientRoots)
+            let scanRoots = skillRoots ?? self.paths.knownClientRoots
+            let skills = SkillDiscoveryEngine.shared.discoverSkills(in: scanRoots)
             onPartialUpdate?(MultiverseDiscoveryReport(skills: skills, mcps: mcps, workspaces: []))
             
             // 3. Workspace discovery

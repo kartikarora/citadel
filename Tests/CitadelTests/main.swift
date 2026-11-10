@@ -154,7 +154,7 @@ func runAllCitadelTests() async throws {
     expect(onboardingVM.currentStep == 5, "Step 5: System Skill Scan with User Permission (Final Step)")
     
     expect(onboardingVM.hasGrantedScanPermission == false, "Scan permission pending user confirmation")
-    onboardingVM.authorizeAndRunSkillScan(customRoots: [tempDiscoveryDir])
+    await onboardingVM.authorizeAndRunSkillScanAsync(customRoots: [tempDiscoveryDir])
     expect(onboardingVM.hasGrantedScanPermission == true, "User grants permission to run system scan")
     expect(onboardingVM.discoveredSkills.contains(where: { $0.name == "my-custom-skill" }) == true, "Scan detects user skills")
     expect(onboardingVM.discoveredSkills.contains(where: { $0.name == "agent-ui" }) == false, "Scan excludes builtin skills")

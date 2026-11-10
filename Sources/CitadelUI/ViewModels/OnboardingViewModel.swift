@@ -84,15 +84,22 @@ public final class OnboardingViewModel: ObservableObject {
         self.hasGrantedScanPermission = true
         self.isScanningSkills = true
         Task {
-            let report = await MultiverseDiscoveryEngine.shared.runFullDiscoveryAsync(workspaceRoots: customRoots)
-            
-            await MainActor.run {
-                self.discoveredSkills = report.skills
-                self.discoveredMCPs = report.mcps
-                self.discoveredWorkspaces = report.workspaces
-                self.isScanningSkills = false
-            }
+            await self.authorizeAndRunSkillScanAsync(customRoots: customRoots)
         }
+    }
+    
+    @MainActor
+    public func authorizeAndRunSkillScanAsync(customRoots: [URL]? = nil) async {
+        self.hasGrantedScanPermission = true
+        self.isScanningSkills = true
+        let report = await MultiverseDiscoveryEngine.shared.runFullDiscoveryAsync(
+            skillRoots: customRoots,
+            workspaceRoots: customRoots
+        )
+        self.discoveredSkills = report.skills
+        self.discoveredMCPs = report.mcps
+        self.discoveredWorkspaces = report.workspaces
+        self.isScanningSkills = false
     }
     
     public func completeOnboarding() {
