@@ -237,6 +237,105 @@ func runAllCitadelTests() throws {
     expect(scriptContent.contains("CITADEL EMERGENCY ROLLBACK"), "Rollback script contains emergency header")
     expect(scriptContent.contains("MATERIALIZED"), "Rollback script contains materialization logic")
     
+    // Suite 10: Shared Skill Detail View & Discovery Inspection
+    print("\n[Suite 10/10: Shared SkillDetailView & Discovery Inspection]")
+    let testSkillDir = FileManager.default.temporaryDirectory.appendingPathComponent("citadel_test_view_skill_\(UUID().uuidString)")
+    try FileManager.default.createDirectory(at: testSkillDir, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: testSkillDir) }
+    
+    let sampleSkillDoc = """
+    ---
+    name: git-advanced
+    description: Advanced Git rebase, bisect, and cherry-pick mastery
+    version: 1.2.0
+    author: Jane Doe
+    ---
+    # Git Advanced Instructions
+    Use interactive rebase to craft atomic commits.
+    """
+    try sampleSkillDoc.write(to: testSkillDir.appendingPathComponent("SKILL.md"), atomically: true, encoding: .utf8)
+    
+    let testDiscoveredSkill = DiscoveredSkill(
+        name: "git-advanced",
+        path: testSkillDir,
+        sourceKind: "custom",
+        isSymlink: false,
+        description: "Advanced Git rebase, bisect, and cherry-pick mastery"
+    )
+    let testGroup = SkillGroup(name: "git-advanced", occurrences: [testDiscoveredSkill])
+    
+    let discoveryVM = DiscoveryViewModel()
+    expect(discoveryVM.selectedSkill == nil, "Initial discovery selectedSkill is nil")
+    expect(discoveryVM.showSkillDetail == false, "Initial showSkillDetail is false")
+    
+    discoveryVM.inspectSkillGroup(testGroup)
+    expect(discoveryVM.showSkillDetail == true, "inspectSkillGroup sets showSkillDetail to true")
+    expect(discoveryVM.selectedSkill?.name == "git-advanced", "inspectSkillGroup parses name")
+    expect(discoveryVM.selectedSkill?.author == "Jane Doe", "inspectSkillGroup extracts author from frontmatter")
+    expect(discoveryVM.selectedSkill?.version == "1.2.0", "inspectSkillGroup extracts version from frontmatter")
+    expect(discoveryVM.selectedSkill?.description?.contains("Advanced Git") == true, "inspectSkillGroup extracts description")
+    expect(discoveryVM.skillContent.contains("interactive rebase"), "inspectSkillGroup loads skill content for View Skill")
+    
+    // Test instantiating shared SkillDetailView
+    let detailView = SkillDetailView(
+        skill: discoveryVM.selectedSkill!,
+        content: discoveryVM.skillContent,
+        palette: ThemePalette.forPreset(.dark)
+    )
+    expect(detailView.skill.name == "git-advanced", "SkillDetailView initialized with skill")
+    expect(detailView.skill.author == "Jane Doe", "SkillDetailView contains author")
+    
+    // Suite 11: Sync Marker Manifest & Onboarding Re-use Repo Flow
+    print("\n[Suite 11/11: SyncMarker & Onboarding Repo Re-use Flow]")
+    let testMarker = RemoteSyncManager.SyncMarker(
+        syncStoreId: "store-test-uuid-12345",
+        app: "Citadel",
+        version: "1.0.0",
+        schemaVersion: 1,
+        createdAt: Date(),
+        lastSyncedAt: Date(),
+        deviceUsername: "testuser",
+        botEmail: "citadel-bot-testuser@github.com"
+    )
+    let markerEncoder = JSONEncoder()
+    markerEncoder.dateEncodingStrategy = .iso8601
+    let markerData = try markerEncoder.encode(testMarker)
+    let markerDecoder = JSONDecoder()
+    markerDecoder.dateDecodingStrategy = .iso8601
+    let decodedMarker = try markerDecoder.decode(RemoteSyncManager.SyncMarker.self, from: markerData)
+    expect(decodedMarker.app == "Citadel", "SyncMarker encodes and decodes app name")
+    expect(decodedMarker.syncStoreId == "store-test-uuid-12345", "SyncMarker preserves unique syncStoreId")
+    expect(decodedMarker.deviceUsername == "testuser", "SyncMarker encodes device username")
+    expect(decodedMarker.botEmail.contains("citadel-bot"), "SyncMarker encodes botEmail")
+    
+    // Test write and read sync marker in HubManager
+    let markerWritten = RemoteSyncManager.shared.writeSyncMarker(marker: testMarker)
+    expect(markerWritten == true, "writeSyncMarker writes marker to hub directory")
+    let readMarker = RemoteSyncManager.shared.readSyncMarker()
+    expect(readMarker?.app == "Citadel", "readSyncMarker reads active marker from hub")
+    expect(readMarker?.syncStoreId == "store-test-uuid-12345", "readSyncMarker reads correct syncStoreId")
+    expect(readMarker?.deviceUsername == "testuser", "readSyncMarker reads correct device username")
+    
+    // Test OnboardingViewModel existing sync repo re-use prompt state with arbitrary repo name (custom-dotfiles)
+    let testDefaults = UserDefaults(suiteName: "citadel_test_reuse_repo_\(UUID().uuidString)")!
+    let onboardingVM = OnboardingViewModel(testDefaults: testDefaults)
+    expect(onboardingVM.showReuseRepoPrompt == false, "Initial showReuseRepoPrompt is false")
+    
+    onboardingVM.foundExistingSyncRepo = true
+    onboardingVM.existingSyncRepoName = "custom-dotfiles"
+    onboardingVM.existingSyncRepoFullName = "testuser/custom-dotfiles"
+    onboardingVM.existingSyncRepoCloneURL = "git@github.com:testuser/custom-dotfiles.git"
+    onboardingVM.existingSyncRepoProvider = .github
+    onboardingVM.existingSyncRepoMarker = testMarker
+    onboardingVM.showReuseRepoPrompt = true
+    
+    expect(onboardingVM.showReuseRepoPrompt == true, "showReuseRepoPrompt is activated when existing sync repo is detected")
+    expect(onboardingVM.existingSyncRepoName == "custom-dotfiles", "Repo identified by marker regardless of name")
+    expect(onboardingVM.existingSyncRepoMarker?.syncStoreId == "store-test-uuid-12345", "existingSyncRepoMarker holds verified syncStoreId")
+    
+    onboardingVM.reuseExistingSyncRepo()
+    expect(onboardingVM.showReuseRepoPrompt == false, "reuseExistingSyncRepo sets remote and dismisses prompt")
+    
     print("\n==================================================")
     print("🎉 ALL \(passedCount)/\(totalCount) UNIT TESTS PASSED SUCCESSFULLY!")
     print("==================================================\n")

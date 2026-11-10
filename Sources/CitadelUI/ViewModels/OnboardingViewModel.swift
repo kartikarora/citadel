@@ -22,6 +22,15 @@ public final class OnboardingViewModel: ObservableObject {
     @Published public var authModalProvider: GitProvider = .github
     @Published public var authInputToken: String = ""
     
+    // Existing Sync Repo Detection & Re-use Prompt (Identified by SyncMarker, not by name)
+    @Published public var foundExistingSyncRepo: Bool = false
+    @Published public var existingSyncRepoName: String = ""
+    @Published public var existingSyncRepoFullName: String = ""
+    @Published public var existingSyncRepoCloneURL: String? = nil
+    @Published public var existingSyncRepoProvider: GitProvider? = nil
+    @Published public var existingSyncRepoMarker: RemoteSyncManager.SyncMarker? = nil
+    @Published public var showReuseRepoPrompt: Bool = false
+    
     // Step 3: Key Generation & Keychain Permission
     @Published public var hasAuthorizedSigningKey: Bool = false
     @Published public var signingKeyFingerprint: String = ""
@@ -93,5 +102,53 @@ public final class OnboardingViewModel: ObservableObject {
         let gl = await GitAuthProvider.shared.getAuthenticatedUser(for: .gitlab)
         self.githubUser = gh
         self.gitlabUser = gl
+        await checkExistingSyncRepo()
+    }
+    
+    public func checkExistingSyncRepo() async {
+        // Search across GitHub first, then GitLab for ANY repo bearing the sync marker
+        if githubUser != nil {
+            if let discovered = await GitAuthProvider.shared.discoverSyncRepository(provider: .github, preferredRepoName: repoName) {
+                self.foundExistingSyncRepo = true
+                self.existingSyncRepoName = discovered.repoName
+                self.existingSyncRepoFullName = discovered.fullName
+                self.existingSyncRepoCloneURL = discovered.cloneURL
+                self.existingSyncRepoProvider = .github
+                self.existingSyncRepoMarker = discovered.marker
+                self.showReuseRepoPrompt = true
+                return
+            }
+        }
+        
+        if gitlabUser != nil {
+            if let discovered = await GitAuthProvider.shared.discoverSyncRepository(provider: .gitlab, preferredRepoName: repoName) {
+                self.foundExistingSyncRepo = true
+                self.existingSyncRepoName = discovered.repoName
+                self.existingSyncRepoFullName = discovered.fullName
+                self.existingSyncRepoCloneURL = discovered.cloneURL
+                self.existingSyncRepoProvider = .gitlab
+                self.existingSyncRepoMarker = discovered.marker
+                self.showReuseRepoPrompt = true
+                return
+            }
+        }
+        
+        self.foundExistingSyncRepo = false
+        self.existingSyncRepoName = ""
+        self.existingSyncRepoFullName = ""
+        self.existingSyncRepoCloneURL = nil
+        self.existingSyncRepoProvider = nil
+        self.existingSyncRepoMarker = nil
+        self.showReuseRepoPrompt = false
+    }
+    
+    public func reuseExistingSyncRepo() {
+        guard let cloneURL = existingSyncRepoCloneURL else { return }
+        _ = RemoteSyncManager.shared.setRemoteURL(cloneURL)
+        self.showReuseRepoPrompt = false
+    }
+    
+    public func declineReuseSyncRepo() {
+        self.showReuseRepoPrompt = false
     }
 }

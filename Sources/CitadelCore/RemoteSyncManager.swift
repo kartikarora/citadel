@@ -58,11 +58,83 @@ public final class RemoteSyncManager: @unchecked Sendable {
         )
     }
     
+    // MARK: - Sync Manifest & Marker
+    
+    public struct SyncMarker: Codable, Sendable {
+        public let syncStoreId: String
+        public let app: String
+        public let version: String
+        public let schemaVersion: Int
+        public let createdAt: Date?
+        public let lastSyncedAt: Date
+        public let deviceUsername: String
+        public let botEmail: String
+        
+        public init(
+            syncStoreId: String = UUID().uuidString.lowercased(),
+            app: String = "Citadel",
+            version: String = "1.0.0",
+            schemaVersion: Int = 1,
+            createdAt: Date? = nil,
+            lastSyncedAt: Date = Date(),
+            deviceUsername: String = CitadelConstants.Git.deviceUsername,
+            botEmail: String = CitadelConstants.Git.botEmail
+        ) {
+            self.syncStoreId = syncStoreId
+            self.app = app
+            self.version = version
+            self.schemaVersion = schemaVersion
+            self.createdAt = createdAt ?? Date()
+            self.lastSyncedAt = lastSyncedAt
+            self.deviceUsername = deviceUsername
+            self.botEmail = botEmail
+        }
+    }
+    
+    /// Writes or updates the .citadel-sync-manifest.json marker file into the hub
+    @discardableResult
+    public func writeSyncMarker(marker: SyncMarker? = nil) -> Bool {
+        let existing = readSyncMarker()
+        let resolvedStoreId = marker?.syncStoreId ?? existing?.syncStoreId ?? UUID().uuidString.lowercased()
+        let resolvedCreatedAt = existing?.createdAt ?? marker?.createdAt ?? Date()
+        
+        let finalMarker = marker ?? SyncMarker(
+            syncStoreId: resolvedStoreId,
+            createdAt: resolvedCreatedAt,
+            lastSyncedAt: Date()
+        )
+        
+        let file = hub.hubURL.appendingPathComponent(CitadelConstants.Paths.syncMarkerFile)
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+        encoder.dateEncodingStrategy = .iso8601
+        do {
+            let data = try encoder.encode(finalMarker)
+            try data.write(to: file)
+            return true
+        } catch {
+            return false
+        }
+    }
+    
+    /// Reads the local sync marker if present
+    public func readSyncMarker() -> SyncMarker? {
+        let file = hub.hubURL.appendingPathComponent(CitadelConstants.Paths.syncMarkerFile)
+        guard FileManager.default.fileExists(atPath: file.path),
+              let data = try? Data(contentsOf: file) else {
+            return nil
+        }
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        return try? decoder.decode(SyncMarker.self, from: data)
+    }
+
     /// Pushes local Citadel hub to remote git
     public func push(remote: String = "origin", branch: String = "main") -> (success: Bool, message: String) {
         guard getRemoteURL(remote: remote) != nil else {
             return (false, "No remote Git URL configured. Set one with 'ctdl remote set <url>'")
         }
+        writeSyncMarker()
         _ = hub.gitCommit(message: "chore(sync): snapshot armory and portal links")
         let res = runGit(["push", "-u", remote, branch])
         return (res.exitCode == 0, res.output.isEmpty ? "Pushed to \(remote)/\(branch)" : res.output)
@@ -100,3 +172,4 @@ public final class RemoteSyncManager: @unchecked Sendable {
         }
     }
 }
+

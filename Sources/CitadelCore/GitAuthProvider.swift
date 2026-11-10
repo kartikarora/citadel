@@ -363,6 +363,139 @@ public final class GitAuthProvider: @unchecked Sendable {
         return (false, nil)
     }
     
+    /// Checks if a remote repository contains the .citadel-sync-manifest.json marker file
+    public func checkRemoteSyncMarker(provider: GitProvider, repoFullName: String) async -> RemoteSyncManager.SyncMarker? {
+        guard let token = getToken(for: provider),
+              let user = await getAuthenticatedUser(for: provider) else {
+            return nil
+        }
+        
+        let path = repoFullName.contains("/") ? repoFullName : "\(user.username)/\(repoFullName)"
+        let markerFilename = CitadelConstants.Paths.syncMarkerFile
+        
+        if provider == .github {
+            guard let url = URL(string: "https://api.github.com/repos/\(path)/contents/\(markerFilename)") else { return nil }
+            var req = URLRequest(url: url)
+            req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+            req.setValue("application/vnd.github.v3+json", forHTTPHeaderField: "Accept")
+            
+            guard let (data, resp) = try? await URLSession.shared.data(for: req),
+                  let http = resp as? HTTPURLResponse, http.statusCode == 200,
+                  let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+                  let base64Content = json["content"] as? String else {
+                return nil
+            }
+            
+            let sanitizedBase64 = base64Content.replacingOccurrences(of: "\n", with: "").replacingOccurrences(of: "\r", with: "")
+            guard let decodedData = Data(base64Encoded: sanitizedBase64) else { return nil }
+            let decoder = JSONDecoder()
+            decoder.dateDecodingStrategy = .iso8601
+            return try? decoder.decode(RemoteSyncManager.SyncMarker.self, from: decodedData)
+        } else {
+            let encodedProject = path.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? path
+            guard let encodedPath = markerFilename.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed),
+                  let url = URL(string: "https://gitlab.com/api/v4/projects/\(encodedProject)/repository/files/\(encodedPath)/raw?ref=main") else {
+                return nil
+            }
+            var req = URLRequest(url: url)
+            req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+            
+            guard let (data, resp) = try? await URLSession.shared.data(for: req),
+                  let http = resp as? HTTPURLResponse, http.statusCode == 200 else {
+                return nil
+            }
+            let decoder = JSONDecoder()
+            decoder.dateDecodingStrategy = .iso8601
+            return try? decoder.decode(RemoteSyncManager.SyncMarker.self, from: data)
+        }
+    }
+    
+    /// Discovered sync repository metadata
+    public struct DiscoveredSyncRepo: Sendable {
+        public let repoName: String
+        public let fullName: String
+        public let cloneURL: String
+        public let provider: GitProvider
+        public let marker: RemoteSyncManager.SyncMarker
+        
+        public init(repoName: String, fullName: String, cloneURL: String, provider: GitProvider, marker: RemoteSyncManager.SyncMarker) {
+            self.repoName = repoName
+            self.fullName = fullName
+            self.cloneURL = cloneURL
+            self.provider = provider
+            self.marker = marker
+        }
+    }
+    
+    /// Searches across the user's remote repositories to locate any repository bearing the Citadel sync marker
+    public func discoverSyncRepository(provider: GitProvider, preferredRepoName: String = "citadel-sync") async -> DiscoveredSyncRepo? {
+        guard let token = getToken(for: provider),
+              let user = await getAuthenticatedUser(for: provider) else {
+            return nil
+        }
+        
+        // 1. Fast path: check the preferred repo name first
+        if let marker = await checkRemoteSyncMarker(provider: provider, repoFullName: "\(user.username)/\(preferredRepoName)") {
+            let clone = provider == .github
+                ? "https://\(user.username):\(token)@github.com/\(user.username)/\(preferredRepoName).git"
+                : "https://oauth2:\(token)@gitlab.com/\(user.username)/\(preferredRepoName).git"
+            return DiscoveredSyncRepo(
+                repoName: preferredRepoName,
+                fullName: "\(user.username)/\(preferredRepoName)",
+                cloneURL: clone,
+                provider: provider,
+                marker: marker
+            )
+        }
+        
+        // 2. GitHub Code Search API fast path (finds the marker file anywhere under user's repos in 1 request)
+        if provider == .github {
+            let query = "filename:\(CitadelConstants.Paths.syncMarkerFile)+user:\(user.username)"
+            if let searchURL = URL(string: "https://api.github.com/search/code?q=\(query)") {
+                var searchReq = URLRequest(url: searchURL)
+                searchReq.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+                searchReq.setValue("application/vnd.github.v3+json", forHTTPHeaderField: "Accept")
+                
+                if let (data, resp) = try? await URLSession.shared.data(for: searchReq),
+                   let http = resp as? HTTPURLResponse, http.statusCode == 200,
+                   let searchJson = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+                   let items = searchJson["items"] as? [[String: Any]],
+                   let firstItem = items.first,
+                   let repoObj = firstItem["repository"] as? [String: Any],
+                   let repoName = repoObj["name"] as? String,
+                   let fullName = repoObj["full_name"] as? String {
+                    if let marker = await checkRemoteSyncMarker(provider: .github, repoFullName: fullName) {
+                        let clone = "https://\(user.username):\(token)@github.com/\(fullName).git"
+                        return DiscoveredSyncRepo(
+                            repoName: repoName,
+                            fullName: fullName,
+                            cloneURL: clone,
+                            provider: .github,
+                            marker: marker
+                        )
+                    }
+                }
+            }
+        }
+        
+        // 3. Fallback: scan user's active repositories for the sync marker
+        let userRepos = await listUserRepositories(provider: provider)
+        for repo in userRepos {
+            if repo.name == preferredRepoName { continue } // already checked in fast path
+            if let marker = await checkRemoteSyncMarker(provider: provider, repoFullName: repo.fullName) {
+                return DiscoveredSyncRepo(
+                    repoName: repo.name,
+                    fullName: repo.fullName,
+                    cloneURL: repo.cloneURL,
+                    provider: provider,
+                    marker: marker
+                )
+            }
+        }
+        
+        return nil
+    }
+    
     // MARK: - List User Repositories
 
     public struct RemoteRepositoryInfo: Identifiable, Sendable {

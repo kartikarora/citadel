@@ -596,6 +596,9 @@ final class CitadelStore: ObservableObject {
     @Published var showApprovalSheet: Bool = false
     @Published var itemPendingApproval: String? = nil
     var approvalAction: (() -> Void)? = nil
+    @Published var selectedDiscoverySkill: Skill? = nil
+    @Published var discoverySkillContent: String = ""
+    @Published var showDiscoverySkillPreview: Bool = true
     
     // Marketplace
     @Published var marketQuery: String = ""
@@ -632,6 +635,15 @@ final class CitadelStore: ObservableObject {
     @Published var repoCreationError: String? = nil
     @Published var isCreatingRepo: Bool = false
     @Published var rollbackNotice: String = ""
+    
+    // Existing Sync Repo Detection & Re-use Prompt (Identified by SyncMarker, not by name)
+    @Published var existingSyncRepoFound: Bool = false
+    @Published var existingSyncRepoName: String = ""
+    @Published var existingSyncRepoFullName: String = ""
+    @Published var existingSyncRepoCloneURL: String? = nil
+    @Published var existingSyncRepoProvider: GitProvider? = nil
+    @Published var existingSyncRepoMarker: RemoteSyncManager.SyncMarker? = nil
+    @Published var showReuseRepoPrompt: Bool = false
     
     func runRollbackEject() {
         do {
@@ -684,6 +696,9 @@ final class CitadelStore: ObservableObject {
             await MainActor.run {
                 self.githubUser = gh
                 self.gitlabUser = gl
+                if self.remoteStatus.remoteURL == nil {
+                    self.checkExistingSyncRepo()
+                }
             }
         }
         
@@ -754,6 +769,45 @@ final class CitadelStore: ObservableObject {
             scanFilesystem()
         } catch {
             print("Unify error: \(error.localizedDescription)")
+        }
+    }
+    
+    func selectDiscoverySkillGroup(_ group: SkillGroup) {
+        let bestOccurrence = group.occurrences.first(where: { !$0.isSymlink }) ?? group.occurrences.first
+        guard let occ = bestOccurrence else { return }
+        
+        var parsedMeta = HubManager.ParsedSkillMeta()
+        var loadedContent = ""
+        let skillFile = occ.path.appendingPathComponent(CitadelConstants.Paths.skillDocFile)
+        if let content = try? String(contentsOf: skillFile, encoding: .utf8) {
+            loadedContent = content
+            parsedMeta = HubManager.shared.parseSkillFrontmatter(from: content)
+        } else {
+            loadedContent = "// No SKILL.md found at \(occ.path.path)"
+        }
+        
+        let skill = Skill(
+            name: parsedMeta.name ?? group.name,
+            path: occ.path,
+            description: parsedMeta.description ?? group.description,
+            isSymlink: occ.isSymlink,
+            version: parsedMeta.version,
+            author: parsedMeta.author,
+            argumentHint: parsedMeta.argumentHint,
+            icon: parsedMeta.icon
+        )
+        
+        self.selectedDiscoverySkill = skill
+        self.discoverySkillContent = loadedContent
+    }
+    
+    func selectDiscoverySkill(_ skill: Skill) {
+        self.selectedDiscoverySkill = skill
+        let skillFile = skill.path.appendingPathComponent(CitadelConstants.Paths.skillDocFile)
+        if let content = try? String(contentsOf: skillFile, encoding: .utf8) {
+            self.discoverySkillContent = content
+        } else {
+            self.discoverySkillContent = "// No SKILL.md found at \(skill.path.path)"
         }
     }
     
@@ -884,23 +938,17 @@ final class CitadelStore: ObservableObject {
                 // Poll for token completion
                 _ = try await GitAuthProvider.shared.pollDeviceToken(provider: provider, deviceCode: devCode.deviceCode, interval: devCode.interval)
                 
-                // Completed successfully
-                let check = await GitAuthProvider.shared.checkRepoExists(provider: provider, repoName: "citadel-sync")
-                if check.exists, let clone = check.cloneURL {
-                    _ = RemoteSyncManager.shared.setRemoteURL(clone)
-                }
-                
-                // Repositories remain controlled by user - only citadel-sync is auto-wired if found
+                // Repositories remain controlled by user - prompt to reuse if found
                 let repos = await GitAuthProvider.shared.listUserRepositories(provider: provider)
                 
                 await MainActor.run {
                     self.availableRemoteRepos = repos
-                    self.remoteRepoExists = check.exists
                     self.isAuthenticating = false
                     self.showAuthModal = false
                     self.oauthErrorMessage = nil
                     self.refresh()
                     self.scanFilesystem()
+                    self.checkExistingSyncRepo()
                 }
             } catch {
                 await MainActor.run {
@@ -920,17 +968,13 @@ final class CitadelStore: ObservableObject {
         
         Task {
             _ = GitAuthProvider.shared.saveToken(token, for: prov)
-            let check = await GitAuthProvider.shared.checkRepoExists(provider: prov, repoName: "citadel-sync")
-            if check.exists, let clone = check.cloneURL {
-                _ = RemoteSyncManager.shared.setRemoteURL(clone)
-            }
             await MainActor.run {
-                self.remoteRepoExists = check.exists
                 self.authInputToken = ""
                 self.isAuthenticating = false
                 self.showAuthModal = false
                 self.refresh()
                 self.scanFilesystem()
+                self.checkExistingSyncRepo()
             }
         }
     }
@@ -962,6 +1006,64 @@ final class CitadelStore: ObservableObject {
         self.isOnboardingComplete = true
         self.refresh()
         self.scanFilesystem()
+    }
+    
+    func checkExistingSyncRepo() {
+        let preferredRepo = onboardingRepoName.isEmpty ? "citadel-sync" : onboardingRepoName
+        Task {
+            if let _ = self.githubUser {
+                if let discovered = await GitAuthProvider.shared.discoverSyncRepository(provider: .github, preferredRepoName: preferredRepo) {
+                    await MainActor.run {
+                        self.existingSyncRepoFound = true
+                        self.existingSyncRepoName = discovered.repoName
+                        self.existingSyncRepoFullName = discovered.fullName
+                        self.existingSyncRepoCloneURL = discovered.cloneURL
+                        self.existingSyncRepoProvider = .github
+                        self.existingSyncRepoMarker = discovered.marker
+                        self.showReuseRepoPrompt = true
+                    }
+                    return
+                }
+            }
+            
+            if let _ = self.gitlabUser {
+                if let discovered = await GitAuthProvider.shared.discoverSyncRepository(provider: .gitlab, preferredRepoName: preferredRepo) {
+                    await MainActor.run {
+                        self.existingSyncRepoFound = true
+                        self.existingSyncRepoName = discovered.repoName
+                        self.existingSyncRepoFullName = discovered.fullName
+                        self.existingSyncRepoCloneURL = discovered.cloneURL
+                        self.existingSyncRepoProvider = .gitlab
+                        self.existingSyncRepoMarker = discovered.marker
+                        self.showReuseRepoPrompt = true
+                    }
+                    return
+                }
+            }
+            
+            await MainActor.run {
+                self.existingSyncRepoFound = false
+                self.existingSyncRepoName = ""
+                self.existingSyncRepoFullName = ""
+                self.existingSyncRepoCloneURL = nil
+                self.existingSyncRepoProvider = nil
+                self.existingSyncRepoMarker = nil
+                self.showReuseRepoPrompt = false
+            }
+        }
+    }
+    
+    func reuseExistingSyncRepo() {
+        guard let cloneURL = existingSyncRepoCloneURL else { return }
+        _ = RemoteSyncManager.shared.setRemoteURL(cloneURL)
+        self.remoteRepoExists = true
+        self.showReuseRepoPrompt = false
+        self.refresh()
+        self.scanFilesystem()
+    }
+    
+    func declineReuseSyncRepo() {
+        self.showReuseRepoPrompt = false
     }
     
     func logout(provider: GitProvider) {
@@ -1472,6 +1574,88 @@ private struct Step2CloudSyncChamber: View {
                     .padding(BrandSpacing.md)
                     .liquidGlass(cornerRadius: BrandCornerRadius.md)
                 }
+            }
+            
+            // Existing Repository Re-use Banner
+            // Existing Repository Re-use Banner (Identified uniquely via SyncMarker)
+            if store.showReuseRepoPrompt && store.remoteStatus.remoteURL == nil {
+                let detectedName = store.existingSyncRepoFullName.isEmpty ? store.existingSyncRepoName : store.existingSyncRepoFullName
+                let displayName = detectedName.isEmpty ? store.onboardingRepoName : detectedName
+                
+                VStack(alignment: .leading, spacing: BrandSpacing.sm) {
+                    HStack(alignment: .top, spacing: BrandSpacing.sm) {
+                        Image(systemName: "arrow.triangle.2.circlepath.circle.fill")
+                            .font(.system(size: 22))
+                            .foregroundColor(store.palette.accent)
+                        
+                        VStack(alignment: .leading, spacing: 3) {
+                            HStack {
+                                Text("CITADEL SYNC STORE DETECTED: \(displayName)")
+                                    .font(.brandMonoBold)
+                                    .foregroundColor(store.palette.textPrimary)
+                                
+                                if store.existingSyncRepoMarker != nil {
+                                    Text("SYNC MARKER VERIFIED")
+                                        .font(.brandMonoMicro)
+                                        .foregroundColor(store.palette.accent)
+                                        .padding(.horizontal, 6)
+                                        .padding(.vertical, 2)
+                                        .liquidGlassPill(tint: store.palette.accent)
+                                }
+                            }
+                            
+                            if let marker = store.existingSyncRepoMarker {
+                                Text("This repository contains a valid Citadel sync marker (`\(CitadelConstants.Paths.syncMarkerFile)`) with store ID `\(marker.syncStoreId.prefix(8))...`, synced by \(marker.deviceUsername) (\(marker.botEmail)). Would you like to re-use this repository as your central store?")
+                                    .font(.brandCaption)
+                                    .foregroundColor(store.palette.textSecondary)
+                                    .lineSpacing(2)
+                                    .fixedSize(horizontal: false, vertical: true)
+                            } else {
+                                Text("We detected an existing '\(displayName)' repository on your connected account. Would you like to re-use it as your central sync store?")
+                                    .font(.brandCaption)
+                                    .foregroundColor(store.palette.textSecondary)
+                                    .lineSpacing(2)
+                                    .fixedSize(horizontal: false, vertical: true)
+                            }
+                        }
+                    }
+                    
+                    HStack(spacing: BrandSpacing.sm) {
+                        Button(action: {
+                            withAnimation(BrandMotion.fastSpring) {
+                                store.reuseExistingSyncRepo()
+                            }
+                        }) {
+                            HStack(spacing: 5) {
+                                Image(systemName: "checkmark.circle.fill")
+                                Text("RE-USE THIS REPOSITORY")
+                            }
+                            .font(.brandMonoBadge)
+                            .foregroundColor(store.palette.textPrimary)
+                            .padding(.horizontal, BrandSpacing.md)
+                            .padding(.vertical, BrandSpacing.xs + 2)
+                            .liquidGlassPill(tint: store.palette.accent)
+                        }
+                        .buttonStyle(.plain)
+                        
+                        Button(action: {
+                            withAnimation(BrandMotion.fastSpring) {
+                                store.declineReuseSyncRepo()
+                            }
+                        }) {
+                            Text("CREATE NEW / SPECIFY OTHER")
+                                .font(.brandMonoBadge)
+                                .foregroundColor(store.palette.textMuted)
+                                .padding(.horizontal, BrandSpacing.md)
+                                .padding(.vertical, BrandSpacing.xs + 2)
+                                .liquidGlassPill()
+                        }
+                        .buttonStyle(.plain)
+                    }
+                    .padding(.top, 4)
+                }
+                .padding(BrandSpacing.md)
+                .liquidGlass(cornerRadius: BrandCornerRadius.md, tint: store.palette.accent)
             }
             
             // Repository Configuration
@@ -2578,73 +2762,18 @@ struct ArmoryChamber: View {
             
             // Skill Preview Pane (Hideable)
             if store.showSkillPreview {
-                VStack(spacing: 0) {
+                Group {
                     if let skill = store.selectedSkill {
-                        HStack(alignment: .top) {
-                            VStack(alignment: .leading, spacing: BrandSpacing.xxs) {
-                                HStack(spacing: BrandSpacing.xs) {
-                                    Text(skill.name)
-                                        .font(.brandHeadline)
-                                        .foregroundColor(store.palette.textPrimary)
-                                    
-                                    Text("CANONICAL")
-                                        .font(.brandMonoBadge)
-                                        .foregroundColor(store.palette.accent)
-                                        .padding(.horizontal, BrandSpacing.xs)
-                                        .padding(.vertical, BrandSpacing.xxs - 1)
-                                        .liquidGlassPill(tint: store.palette.accent)
-                                    
-                                    if let ver = skill.version {
-                                        Text("v\(ver)")
-                                            .font(.brandMonoBadge)
-                                            .foregroundColor(store.palette.textSecondary)
-                                            .padding(.horizontal, BrandSpacing.xs)
-                                            .padding(.vertical, BrandSpacing.xxs - 1)
-                                            .liquidGlassPill()
-                                    }
-                                }
-                                
-                                Text(skill.path.path)
-                                    .font(.brandMonoMicro)
-                                    .foregroundColor(store.palette.textMuted)
-                                
-                                if let author = skill.author {
-                                    Text("Maintained by \(author)")
-                                        .font(.brandCaption)
-                                        .foregroundColor(store.palette.textSecondary)
-                                        .padding(.top, 2)
-                                }
-                            }
-                            Spacer()
-                            
-                            Button(action: {
+                        SkillDetailView(
+                            skill: skill,
+                            content: store.skillContent,
+                            palette: store.palette,
+                            onClose: {
                                 withAnimation(BrandMotion.fastSpring) {
                                     store.showSkillPreview = false
                                 }
-                            }) {
-                                Image(systemName: "xmark")
-                                    .font(.system(size: 11, weight: .bold))
-                                    .foregroundColor(store.palette.textMuted)
-                                    .frame(width: 24, height: 24)
-                                    .liquidGlassPill()
                             }
-                            .buttonStyle(.plain)
-                            .help("Close preview")
-                        }
-                        .padding(BrandSpacing.md)
-                        .background(store.palette.background.opacity(0.2))
-                        
-                        Divider().background(store.palette.border.opacity(0.4))
-                        
-                        ScrollView {
-                            Text(store.skillContent)
-                                .font(.brandMono)
-                                .lineSpacing(5)
-                                .foregroundColor(store.palette.textPrimary)
-                                .textSelection(.enabled)
-                                .padding(BrandSpacing.lg)
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                        }
+                        )
                     } else {
                         VStack(spacing: BrandSpacing.xs) {
                             Text("Select a skill from the Armory")
@@ -3412,6 +3541,23 @@ struct DiscoveryChamber: View {
                 
                 Spacer()
                 
+                // Toggle preview inspector button (when skills tab is selected)
+                if store.discoveryTab == "skills" {
+                    Button(action: {
+                        withAnimation(BrandMotion.fastSpring) {
+                            store.showDiscoverySkillPreview.toggle()
+                        }
+                    }) {
+                        Image(systemName: store.showDiscoverySkillPreview ? "sidebar.right" : "sidebar.squares.right")
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundColor(store.showDiscoverySkillPreview ? store.palette.accent : store.palette.textMuted)
+                            .frame(width: 30, height: 30)
+                            .liquidGlassPill(tint: store.showDiscoverySkillPreview ? store.palette.accent : nil)
+                    }
+                    .buttonStyle(.plain)
+                    .help(store.showDiscoverySkillPreview ? "Hide skill details pane" : "Show skill details pane")
+                }
+                
                 Button(action: { store.scanFilesystem() }) {
                     HStack(spacing: BrandSpacing.xs) {
                         Image(systemName: "sparkle.magnifyingglass")
@@ -3430,116 +3576,19 @@ struct DiscoveryChamber: View {
             
             Divider().background(store.palette.border.opacity(0.3))
             
-            ScrollView {
-                LazyVStack(spacing: 0) {
-                    if store.discoveryTab == "skills" {
-                        ForEach(filteredSkillGroups) { group in
-                            VStack(alignment: .leading, spacing: BrandSpacing.xs) {
-                                HStack {
-                                    Text(group.name)
-                                        .font(.brandHeadline)
-                                        .foregroundColor(store.palette.textPrimary)
-                                    
-                                    if group.occurrences.count > 1 {
-                                        Text("\(group.occurrences.count) LOCATIONS")
-                                            .font(.brandMonoBadge)
-                                            .foregroundColor(store.palette.accent)
-                                            .padding(.horizontal, BrandSpacing.xs)
-                                            .padding(.vertical, BrandSpacing.xxs - 1)
-                                            .background(store.palette.accentMuted)
-                                            .clipShape(BrandShapes.pill)
-                                    }
-                                    
-                                    Spacer()
-                                    
-                                    if !group.isFullyUnified {
-                                        Button("UNIFY GROUP") {
-                                            store.itemPendingApproval = "Unify '\(group.name)' across \(group.occurrences.count) locations into ~/.citadel/skills/\(group.name)"
-                                            store.approvalAction = { store.unifySkillGroup(group) }
-                                            store.showApprovalSheet = true
-                                        }
-                                        .font(.brandMonoBadge)
-                                        .foregroundColor(store.palette.background)
-                                        .padding(.horizontal, BrandSpacing.sm)
-                                        .padding(.vertical, BrandSpacing.xs - 2)
-                                        .background(store.palette.accent)
-                                        .clipShape(BrandShapes.pill)
-                                        .buttonStyle(.plain)
-                                    }
-                                }
-                                
-                                ForEach(group.occurrences) { occ in
-                                    HStack(spacing: BrandSpacing.xs) {
-                                        Circle()
-                                            .fill(occ.isSymlink ? store.palette.accent : Color.orange)
-                                            .frame(width: 5, height: 5)
-                                        Text(occ.path.path)
-                                            .font(.brandMono)
-                                            .foregroundColor(store.palette.textMuted)
-                                        Spacer()
-                                        Text(occ.isSymlink ? "symlink" : "real copy")
-                                            .font(.brandMonoMicro)
-                                            .foregroundColor(occ.isSymlink ? store.palette.accent : store.palette.textSecondary)
-                                    }
-                                }
-                            }
-                            .padding(BrandSpacing.md)
-                            .background(store.palette.background)
-                            
-                            Divider().background(store.palette.border)
-                        }
-                    } else if store.discoveryTab == "mcps" {
-                        ForEach(filteredDiscoveredMCPs) { mcp in
-                            HStack {
-                                VStack(alignment: .leading, spacing: BrandSpacing.xxs) {
-                                    HStack(spacing: BrandSpacing.xs) {
-                                        Text(mcp.name)
+            HSplitView {
+                ScrollView {
+                    LazyVStack(spacing: 0) {
+                        if store.discoveryTab == "skills" {
+                            ForEach(filteredSkillGroups) { group in
+                                VStack(alignment: .leading, spacing: BrandSpacing.xs) {
+                                    HStack {
+                                        Text(group.name)
                                             .font(.brandHeadline)
                                             .foregroundColor(store.palette.textPrimary)
-                                        Text(mcp.clientName.uppercased())
-                                            .font(.brandMonoBadge)
-                                            .foregroundColor(store.palette.accent)
-                                            .padding(.horizontal, BrandSpacing.xs)
-                                            .padding(.vertical, BrandSpacing.xxs - 1)
-                                            .background(store.palette.accentMuted)
-                                            .clipShape(BrandShapes.pill)
-                                    }
-                                    Text("\(mcp.command) \(mcp.args.joined(separator: " "))")
-                                        .font(.brandMono)
-                                        .foregroundColor(store.palette.textMuted)
-                                }
-                                Spacer()
-                                Button("IMPORT CONFIG") {
-                                    store.itemPendingApproval = "MCP Server: \(mcp.name) [from \(mcp.clientName)]"
-                                    store.approvalAction = {
-                                        try? MultiverseDiscoveryEngine.shared.ingestMCP(mcp)
-                                        store.refresh()
-                                    }
-                                    store.showApprovalSheet = true
-                                }
-                                .font(.brandMonoBadge)
-                                .foregroundColor(store.palette.background)
-                                .padding(.horizontal, BrandSpacing.sm)
-                                .padding(.vertical, BrandSpacing.xs - 2)
-                                .background(store.palette.accent)
-                                .clipShape(BrandShapes.pill)
-                                .buttonStyle(.plain)
-                            }
-                            .padding(BrandSpacing.md)
-                            .background(store.palette.background)
-                            
-                            Divider().background(store.palette.border)
-                        }
-                    } else {
-                        ForEach(filteredDiscoveredWorkspaces) { ws in
-                            HStack {
-                                VStack(alignment: .leading, spacing: BrandSpacing.xxs) {
-                                    HStack(spacing: BrandSpacing.xs) {
-                                        Text(ws.name)
-                                            .font(.brandHeadline)
-                                            .foregroundColor(store.palette.textPrimary)
-                                        if ws.isAlreadyPortal {
-                                            Text("CONNECTED")
+                                        
+                                        if group.occurrences.count > 1 {
+                                            Text("\(group.occurrences.count) LOCATIONS")
                                                 .font(.brandMonoBadge)
                                                 .foregroundColor(store.palette.accent)
                                                 .padding(.horizontal, BrandSpacing.xs)
@@ -3547,18 +3596,96 @@ struct DiscoveryChamber: View {
                                                 .background(store.palette.accentMuted)
                                                 .clipShape(BrandShapes.pill)
                                         }
+                                        
+                                        Spacer()
+                                        
+                                        Button(action: {
+                                            withAnimation(BrandMotion.fastSpring) {
+                                                store.selectDiscoverySkillGroup(group)
+                                                store.showDiscoverySkillPreview = true
+                                            }
+                                        }) {
+                                            HStack(spacing: 4) {
+                                                Image(systemName: "doc.text.magnifyingglass")
+                                                Text("VIEW SKILL")
+                                            }
+                                            .font(.brandMonoBadge)
+                                            .foregroundColor(store.selectedDiscoverySkill?.name == group.name ? store.palette.accent : store.palette.textSecondary)
+                                            .padding(.horizontal, BrandSpacing.sm)
+                                            .padding(.vertical, BrandSpacing.xs - 2)
+                                            .liquidGlassPill(tint: store.selectedDiscoverySkill?.name == group.name ? store.palette.accent : nil)
+                                        }
+                                        .buttonStyle(.plain)
+                                        .help("View skill instructions, author, and documentation")
+                                        
+                                        if !group.isFullyUnified {
+                                            Button("UNIFY GROUP") {
+                                                store.itemPendingApproval = "Unify '\(group.name)' across \(group.occurrences.count) locations into ~/.citadel/skills/\(group.name)"
+                                                store.approvalAction = { store.unifySkillGroup(group) }
+                                                store.showApprovalSheet = true
+                                            }
+                                            .font(.brandMonoBadge)
+                                            .foregroundColor(store.palette.background)
+                                            .padding(.horizontal, BrandSpacing.sm)
+                                            .padding(.vertical, BrandSpacing.xs - 2)
+                                            .background(store.palette.accent)
+                                            .clipShape(BrandShapes.pill)
+                                            .buttonStyle(.plain)
+                                        }
                                     }
-                                    Text(ws.path.path)
-                                        .font(.brandMono)
-                                        .foregroundColor(store.palette.textMuted)
+                                    
+                                    ForEach(group.occurrences) { occ in
+                                        HStack(spacing: BrandSpacing.xs) {
+                                            Circle()
+                                                .fill(occ.isSymlink ? store.palette.accent : Color.orange)
+                                                .frame(width: 5, height: 5)
+                                            Text(occ.path.path)
+                                                .font(.brandMono)
+                                                .foregroundColor(store.palette.textMuted)
+                                            Spacer()
+                                            Text(occ.isSymlink ? "symlink" : "real copy")
+                                                .font(.brandMonoMicro)
+                                                .foregroundColor(occ.isSymlink ? store.palette.accent : store.palette.textSecondary)
+                                        }
+                                    }
                                 }
-                                Spacer()
-                                if !ws.isAlreadyPortal {
-                                    Button("CONNECT PORTAL") {
-                                        store.itemPendingApproval = "Workspace Portal: \(ws.name) (\(ws.path.path))"
+                                .padding(BrandSpacing.md)
+                                .background {
+                                    if store.selectedDiscoverySkill?.name == group.name {
+                                        store.palette.accentMuted
+                                    } else {
+                                        store.palette.background
+                                    }
+                                }
+                                
+                                Divider().background(store.palette.border)
+                            }
+                        } else if store.discoveryTab == "mcps" {
+                            ForEach(filteredDiscoveredMCPs) { mcp in
+                                HStack {
+                                    VStack(alignment: .leading, spacing: BrandSpacing.xxs) {
+                                        HStack(spacing: BrandSpacing.xs) {
+                                            Text(mcp.name)
+                                                .font(.brandHeadline)
+                                                .foregroundColor(store.palette.textPrimary)
+                                            Text(mcp.clientName.uppercased())
+                                                .font(.brandMonoBadge)
+                                                .foregroundColor(store.palette.accent)
+                                                .padding(.horizontal, BrandSpacing.xs)
+                                                .padding(.vertical, BrandSpacing.xxs - 1)
+                                                .background(store.palette.accentMuted)
+                                                .clipShape(BrandShapes.pill)
+                                        }
+                                        Text("\(mcp.command) \(mcp.args.joined(separator: " "))")
+                                            .font(.brandMono)
+                                            .foregroundColor(store.palette.textMuted)
+                                    }
+                                    Spacer()
+                                    Button("IMPORT CONFIG") {
+                                        store.itemPendingApproval = "MCP Server: \(mcp.name) [from \(mcp.clientName)]"
                                         store.approvalAction = {
-                                            try? MultiverseDiscoveryEngine.shared.connectWorkspaceAsPortal(ws)
-                                            store.syncAll()
+                                            try? MultiverseDiscoveryEngine.shared.ingestMCP(mcp)
+                                            store.refresh()
                                         }
                                         store.showApprovalSheet = true
                                     }
@@ -3570,13 +3697,94 @@ struct DiscoveryChamber: View {
                                     .clipShape(BrandShapes.pill)
                                     .buttonStyle(.plain)
                                 }
+                                .padding(BrandSpacing.md)
+                                .background(store.palette.background)
+                                
+                                Divider().background(store.palette.border)
                             }
-                            .padding(BrandSpacing.md)
-                            .background(store.palette.background)
-                            
-                            Divider().background(store.palette.border)
+                        } else {
+                            ForEach(filteredDiscoveredWorkspaces) { ws in
+                                HStack {
+                                    VStack(alignment: .leading, spacing: BrandSpacing.xxs) {
+                                        HStack(spacing: BrandSpacing.xs) {
+                                            Text(ws.name)
+                                                .font(.brandHeadline)
+                                                .foregroundColor(store.palette.textPrimary)
+                                            if ws.isAlreadyPortal {
+                                                Text("CONNECTED")
+                                                    .font(.brandMonoBadge)
+                                                    .foregroundColor(store.palette.accent)
+                                                    .padding(.horizontal, BrandSpacing.xs)
+                                                    .padding(.vertical, BrandSpacing.xxs - 1)
+                                                    .background(store.palette.accentMuted)
+                                                    .clipShape(BrandShapes.pill)
+                                            }
+                                        }
+                                        Text(ws.path.path)
+                                            .font(.brandMono)
+                                            .foregroundColor(store.palette.textMuted)
+                                    }
+                                    Spacer()
+                                    if !ws.isAlreadyPortal {
+                                        Button("CONNECT PORTAL") {
+                                            store.itemPendingApproval = "Workspace Portal: \(ws.name) (\(ws.path.path))"
+                                            store.approvalAction = {
+                                                try? MultiverseDiscoveryEngine.shared.connectWorkspaceAsPortal(ws)
+                                                store.syncAll()
+                                            }
+                                            store.showApprovalSheet = true
+                                        }
+                                        .font(.brandMonoBadge)
+                                        .foregroundColor(store.palette.background)
+                                        .padding(.horizontal, BrandSpacing.sm)
+                                        .padding(.vertical, BrandSpacing.xs - 2)
+                                        .background(store.palette.accent)
+                                        .clipShape(BrandShapes.pill)
+                                        .buttonStyle(.plain)
+                                    }
+                                }
+                                .padding(BrandSpacing.md)
+                                .background(store.palette.background)
+                                
+                                Divider().background(store.palette.border)
+                            }
                         }
                     }
+                }
+                .frame(minWidth: 320, idealWidth: 420, maxWidth: (store.discoveryTab == "skills" && store.showDiscoverySkillPreview && store.selectedDiscoverySkill != nil) ? 520 : .infinity)
+                
+                // Shared Skill Detail / Inspection View
+                if store.discoveryTab == "skills" && store.showDiscoverySkillPreview {
+                    Group {
+                        if let skill = store.selectedDiscoverySkill {
+                            SkillDetailView(
+                                skill: skill,
+                                content: store.discoverySkillContent,
+                                palette: store.palette,
+                                onClose: {
+                                    withAnimation(BrandMotion.fastSpring) {
+                                        store.showDiscoverySkillPreview = false
+                                    }
+                                }
+                            )
+                        } else {
+                            VStack(spacing: BrandSpacing.xs) {
+                                Image(systemName: "doc.text.magnifyingglass")
+                                    .font(.system(size: 28))
+                                    .foregroundColor(store.palette.textMuted.opacity(0.6))
+                                Text("Select \"VIEW SKILL\" on any discovered skill")
+                                    .font(.brandSubheadline)
+                                    .foregroundColor(store.palette.textMuted)
+                                Text("Inspect what the skill does, who authored it, and its complete instructions.")
+                                    .font(.brandCaption)
+                                    .foregroundColor(store.palette.textMuted.opacity(0.8))
+                                    .multilineTextAlignment(.center)
+                                    .padding(.horizontal, BrandSpacing.lg)
+                            }
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        }
+                    }
+                    .frame(minWidth: 380)
                 }
             }
         }

@@ -32,6 +32,7 @@ public enum CitadelConstants {
         public static let allowedSignersFile = "allowed_signers"
         public static let portalsFile = "portals.json"
         public static let configFile = "config.json"
+        public static let syncMarkerFile = ".citadel-sync-manifest.json"
         public static let skillDocFile = "SKILL.md"
         public static let rollbackScriptFile = "rollback.sh"
     }
