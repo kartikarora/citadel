@@ -56,13 +56,39 @@ public final class MultiverseDiscoveryEngine: @unchecked Sendable {
     private let fileManager = FileManager.default
     private let paths = UniversalPaths.shared
     
-    /// Runs a full discovery pass across skills, MCP servers, and workspaces
+    /// Runs a full discovery pass across skills, MCP servers, and workspaces (Synchronous)
     public func runFullDiscovery(workspaceRoots: [URL]? = nil) -> MultiverseDiscoveryReport {
         let skills = SkillDiscoveryEngine.shared.discoverSkills(in: paths.knownClientRoots)
         let mcps = discoverMCPServers()
         let workspaces = discoverWorkspaces(searchRoots: workspaceRoots ?? paths.defaultWorkspaceRoots)
         return MultiverseDiscoveryReport(skills: skills, mcps: mcps, workspaces: workspaces)
     }
+    
+    /// Runs a full discovery pass completely off the main thread with progressive streaming callbacks
+    public func runFullDiscoveryAsync(
+        workspaceRoots: [URL]? = nil,
+        onPartialUpdate: (@Sendable (MultiverseDiscoveryReport) -> Void)? = nil
+    ) async -> MultiverseDiscoveryReport {
+        return await Task.detached(priority: .userInitiated) { [weak self] () -> MultiverseDiscoveryReport in
+            guard let self = self else { return MultiverseDiscoveryReport() }
+            
+            // 1. Fast MCP discovery (reads specific json config files only - takes ~5ms)
+            let mcps = self.discoverMCPServers()
+            onPartialUpdate?(MultiverseDiscoveryReport(skills: [], mcps: mcps, workspaces: []))
+            
+            // 2. Client skills discovery
+            let skills = SkillDiscoveryEngine.shared.discoverSkills(in: self.paths.knownClientRoots)
+            onPartialUpdate?(MultiverseDiscoveryReport(skills: skills, mcps: mcps, workspaces: []))
+            
+            // 3. Workspace discovery
+            let workspaces = self.discoverWorkspaces(searchRoots: workspaceRoots ?? self.paths.defaultWorkspaceRoots)
+            let finalReport = MultiverseDiscoveryReport(skills: skills, mcps: mcps, workspaces: workspaces)
+            onPartialUpdate?(finalReport)
+            
+            return finalReport
+        }.value
+    }
+    
     
     // MARK: - Portable MCP Discovery
     

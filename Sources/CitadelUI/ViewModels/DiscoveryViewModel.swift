@@ -24,17 +24,33 @@ public final class DiscoveryViewModel: ObservableObject {
     public init() {}
     
     public func scanFilesystem(onRemoteStatus: ((RemoteSyncStatus) -> Void)? = nil) {
+        guard !isScanning else { return }
         isScanning = true
+        
         Task {
-            let report = MultiverseDiscoveryEngine.shared.runFullDiscovery()
-            let groups = SkillGroupManager.shared.groupDiscoveredSkills(report.skills)
-            let status = RemoteSyncManager.shared.getStatus()
+            // Progressive background discovery so UI stays fast and interactive
+            _ = await MultiverseDiscoveryEngine.shared.runFullDiscoveryAsync { [weak self] partialReport in
+                Task { @MainActor [weak self] in
+                    guard let self = self else { return }
+                    if !partialReport.mcps.isEmpty {
+                        self.discoveredMCPs = partialReport.mcps
+                    }
+                    if !partialReport.skills.isEmpty {
+                        self.discoveredSkills = partialReport.skills
+                        self.skillGroups = SkillGroupManager.shared.groupDiscoveredSkills(partialReport.skills)
+                    }
+                    if !partialReport.workspaces.isEmpty {
+                        self.discoveredWorkspaces = partialReport.workspaces
+                    }
+                }
+            }
+            
+            // Remote sync status check in background
+            let status = await Task.detached(priority: .utility) {
+                RemoteSyncManager.shared.getStatus()
+            }.value
             
             await MainActor.run {
-                self.discoveredSkills = report.skills
-                self.skillGroups = groups
-                self.discoveredMCPs = report.mcps
-                self.discoveredWorkspaces = report.workspaces
                 self.isScanning = false
                 onRemoteStatus?(status)
             }

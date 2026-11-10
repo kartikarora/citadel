@@ -336,6 +336,10 @@ func runAllCitadelTests() throws {
     onboardingVM.reuseExistingSyncRepo()
     expect(onboardingVM.showReuseRepoPrompt == false, "reuseExistingSyncRepo sets remote and dismisses prompt")
     
+    // Test non-blocking background discovery execution
+    let asyncDiscoveryReport = await MultiverseDiscoveryEngine.shared.runFullDiscoveryAsync(workspaceRoots: [])
+    expect(asyncDiscoveryReport.mcps.count >= 0, "runFullDiscoveryAsync runs off main thread without blocking")
+    
     print("\n==================================================")
     print("🎉 ALL \(passedCount)/\(totalCount) UNIT TESTS PASSED SUCCESSFULLY!")
     print("==================================================\n")

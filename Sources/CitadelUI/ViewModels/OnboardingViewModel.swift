@@ -80,10 +80,16 @@ public final class OnboardingViewModel: ObservableObject {
     public func authorizeAndRunSkillScan(customRoots: [URL]? = nil) {
         self.hasGrantedScanPermission = true
         self.isScanningSkills = true
-        let engine = SkillDiscoveryEngine.shared
-        let skills = engine.discoverSkills(in: customRoots, includeBuiltin: false)
-        self.discoveredSkills = skills
-        self.isScanningSkills = false
+        Task {
+            let skills = await Task.detached(priority: .userInitiated) {
+                SkillDiscoveryEngine.shared.discoverSkills(in: customRoots, includeBuiltin: false)
+            }.value
+            
+            await MainActor.run {
+                self.discoveredSkills = skills
+                self.isScanningSkills = false
+            }
+        }
     }
     
     public func completeOnboarding() {
