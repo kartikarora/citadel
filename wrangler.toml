@@ -1,0 +1,10 @@
+name = "citadel"
+compatibility_date = "2026-11-09"
+assets = { directory = "docs" }
+
+[observability]
+enabled = true
+
+[[routes]]
+pattern = "citadel.kartikarora.me"
+custom_domain = true
