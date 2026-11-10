@@ -67,6 +67,32 @@ if [ -n "${CITADEL_GITHUB_CLIENT_ID:-}" ]; then
 EOF
 fi
 
+echo "==> Ad-hoc codesigning app bundle..."
+ENTITLEMENTS_FILE="${BUILD_DIR}/Citadel.entitlements"
+cat <<EOF > "${ENTITLEMENTS_FILE}"
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>com.apple.security.cs.allow-jit</key>
+    <true/>
+    <key>com.apple.security.cs.allow-unsigned-executable-memory</key>
+    <true/>
+    <key>com.apple.security.cs.disable-library-validation</key>
+    <true/>
+    <key>com.apple.security.network.client</key>
+    <true/>
+</dict>
+</plist>
+EOF
+
+# Perform ad-hoc codesign on bundle and binary
+if command -v codesign >/dev/null 2>&1; then
+    codesign --force --deep --sign - --entitlements "${ENTITLEMENTS_FILE}" "${APP_BUNDLE}"
+    echo "==> Verified ad-hoc signature:"
+    codesign -dvv "${APP_BUNDLE}" 2>&1 | grep -E "Signature|Identifier|Format" || true
+fi
+
 echo "==> Generating DMG..."
 mkdir -p "${OUTPUT_DIR}"
 DMG_STAGING="${BUILD_DIR}/dmg_staging"
