@@ -627,10 +627,80 @@ struct DocsCommand: ParsableCommand {
 }
 
 struct AppCommand: ParsableCommand {
-    static let configuration = CommandConfiguration(commandName: "app", abstract: "Launch the native macOS Citadel UI.")
+    static let configuration = CommandConfiguration(
+        commandName: "app",
+        abstract: "Launch the native macOS Citadel frontend, or download and install the DMG bundle."
+    )
+    
+    @Flag(name: [.customShort("i"), .customLong("install")], help: "Download and install the latest Citadel.app DMG release if not already installed.")
+    var install: Bool = false
     
     func run() throws {
-        print("🚀 Launching Citadel UI...")
-        // Can spawn CitadelApp or open bundle
+        let appPaths = [
+            "/Applications/Citadel.app",
+            CitadelUtils.expandTildePath("~/Applications/Citadel.app")
+        ]
+        
+        let existingApp = appPaths.first { FileManager.default.fileExists(atPath: $0) }
+        
+        if let app = existingApp {
+            print("🚀 Launching native Citadel UI from \(app)...")
+            let proc = Process()
+            proc.executableURL = URL(fileURLWithPath: "/usr/bin/open")
+            proc.arguments = [app]
+            try? proc.run()
+            return
+        }
+        
+        if !install {
+            print("🏰 Citadel is primarily a native macOS frontend application.")
+            print("⚠️  Citadel.app is not currently installed in /Applications.")
+            print("\nTo automatically download and install the latest DMG frontend release, run:")
+            print("   citadel app --install")
+            print("\nOr download directly from: https://citadel.kartikarora.me/#downloads")
+            return
+        }
+        
+        print("📦 Downloading latest Citadel macOS DMG release from GitHub...")
+        let tempDMG = FileManager.default.temporaryDirectory.appendingPathComponent("Citadel-macOS.dmg")
+        let releaseURL = "https://github.com/kartikarora/citadel/releases/latest/download/Citadel-0.1.0-macOS-arm64.dmg"
+        
+        let curlProc = Process()
+        curlProc.executableURL = URL(fileURLWithPath: "/usr/bin/curl")
+        curlProc.arguments = ["-fsSL", releaseURL, "-o", tempDMG.path]
+        try? curlProc.run()
+        curlProc.waitUntilExit()
+        
+        guard FileManager.default.fileExists(atPath: tempDMG.path) else {
+            print("❌ Failed to download Citadel DMG from \(releaseURL).")
+            print("Please visit https://citadel.kartikarora.me/#downloads to download manually.")
+            return
+        }
+        
+        print("💿 Mounting DMG and installing Citadel.app to /Applications...")
+        let mountProc = Process()
+        mountProc.executableURL = URL(fileURLWithPath: "/usr/bin/hdiutil")
+        mountProc.arguments = ["attach", tempDMG.path, "-nobrowse", "-mountpoint", "/Volumes/CitadelInstaller"]
+        try? mountProc.run()
+        mountProc.waitUntilExit()
+        
+        let mountedApp = "/Volumes/CitadelInstaller/Citadel.app"
+        if FileManager.default.fileExists(atPath: mountedApp) {
+            _ = CitadelUtils.runProcess(executable: "/bin/cp", arguments: ["-R", mountedApp, "/Applications/Citadel.app"])
+            print("✅ Successfully installed Citadel.app into /Applications!")
+        }
+        
+        let unmountProc = Process()
+        unmountProc.executableURL = URL(fileURLWithPath: "/usr/bin/hdiutil")
+        unmountProc.arguments = ["detach", "/Volumes/CitadelInstaller", "-quiet"]
+        try? unmountProc.run()
+        unmountProc.waitUntilExit()
+        try? FileManager.default.removeItem(at: tempDMG)
+        
+        print("🚀 Opening Citadel.app...")
+        let openProc = Process()
+        openProc.executableURL = URL(fileURLWithPath: "/usr/bin/open")
+        openProc.arguments = ["/Applications/Citadel.app"]
+        try? openProc.run()
     }
 }

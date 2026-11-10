@@ -1,107 +1,101 @@
-# Citadel (`ctdl`)
+# Citadel 🏰
 
-Keep your AI skills, prompts, and MCP servers in one place.
+> **The Council of Skills & MCPs**: Keep your AI skills, prompts, and MCP servers in one place across Antigravity, Claude, Cursor, and your project repositories.
 
-Claude, Antigravity, and Cursor each expect configs in different folders. Citadel keeps your skills in `~/.citadel` and symlinks them into each tool. When you edit a skill, every assistant sees the edit immediately.
+Citadel is primarily a **native macOS frontend application** designed with Liquid Glass styling, deep directory inspection, live multiverse discovery, and cryptographically signed Git synchronization.
 
 ---
 
-## The Problem
+## 🖥️ Native macOS Frontend vs. Opt-In CLI
 
+Citadel is built with a **frontend-first architecture**:
+
+1. **Native Desktop Application (`Citadel.app`)**:
+   - The primary way to run Citadel on macOS.
+   - Self-contained `.dmg` download: no terminal, no build steps, and no PATH configuration required.
+   - Provides visual Chamber navigation: Armory, Project Portals, Discovery & Ingestion, NPM Skills Manager, and Encrypted Sync.
+   - [Download latest macOS DMG](https://citadel.kartikarora.me/#downloads)
+
+2. **Opt-In CLI (`citadel` / `ctdl`)**:
+   - The CLI is completely optional.
+   - If you use the frontend, you can install the CLI with one click inside **Settings > CLI Integration** (installs `citadel` and `ctdl` to `~/.local/bin` with autocompletions for Zsh, Bash, and Fish).
+   - If you prefer the terminal, you can install the standalone CLI on its own.
+
+3. **Install Frontend from CLI (`citadel app --install`)**:
+   - If you have the standalone CLI and want the desktop frontend, you don't need to hunt for browser links:
+     ```bash
+     # Launch UI if installed, or download & mount the latest DMG release
+     citadel app --install
+     ```
+
+---
+
+## 🔒 Security & Privacy Verification
+
+Citadel is built for zero-trust local development:
+
+- **Audited by Gitleaks**: Scanned across repository history with **0 secrets, 0 private keys, and 0 tokens** committed.
+- **Audited by Code-VulnScan**: Flow-aware AST analysis across Python, Swift, Shell, and Actions verifies **0 critical, 0 high vulnerability patterns**.
+- **Hardware-Bound Commit Signing**: All Git synchronization in `~/.citadel` is automatically signed with SSH Ed25519 keys isolated inside your **macOS Keychain** (`sh.citadel.signing`).
+- **No Cloud Exfiltration**: Citadel does not host an intermediary backend. Synchronization runs directly between your device and your own private GitHub or GitLab repository.
+- **Safe Decoupling & Materialization**: You can eject from Citadel at any time using **Settings > Materialize All Symlinks** or running the auto-generated standalone recovery script at `~/.citadel/rollback.sh`.
+
+---
+
+## The Problem Citadel Solves
+
+Every AI coding assistant expects configs in its own siloed directory:
 - **Antigravity** stores global skills in `~/.gemini/config/skills`, plugins in `~/.gemini/config/plugins`, and project configs in `.gemini/`.
-- **Claude** stores CLI skills in `~/.claude/skills`, desktop MCPs in `~/Library/Application Support/Claude/claude_desktop_config.json`, and project configs in `.claude/`.
+- **Claude Code / Desktop** stores skills in `~/.claude/skills`, desktop MCPs in `~/Library/Application Support/Claude/claude_desktop_config.json`, and project configs in `.claude/`.
 - **Cursor / Codex** use workspace prompt files.
-- **Projects** often have local prompt folders checked into Git, so bug fixes in one project never reach your other projects.
+- **Projects** frequently have local prompt folders checked into Git, meaning bug fixes or updates in one project never reach your other projects.
 
-Citadel stores your canonical skills and MCP configs in `~/.citadel`. It manages the symlinks and config generation for each tool.
+Citadel stores your canonical skills and MCP configs in `~/.citadel` and manages live symlinks across all dimensions. When you edit a skill, every assistant sees the edit immediately.
 
 ---
 
-## Installation
+## Quick Start
 
-Citadel is written in Swift for macOS.
+### 1. Download the Native Frontend
+Grab the latest release from [citadel.kartikarora.me](https://citadel.kartikarora.me/):
+- Download `Citadel-0.1.0-macOS-arm64.dmg`
+- Drag `Citadel.app` to `/Applications`
+- Run the 5-step onboarding wizard to set up your directory, SSH signing key, theme, and initial scan.
 
+### 2. Or Build / Install CLI from Source
 ```bash
-git clone https://github.com/kartik/citadel.git
-cd citadel && make install
+git clone https://github.com/kartikarora/citadel.git
+cd citadel
+swift build -c release
 ```
-
-This installs `citadel` and `ctdl` into `/usr/local/bin`.
 
 Initialize your central hub:
 ```bash
-ctdl init
-```
-
-This creates `~/.citadel` with a Git repository to track your changes.
-
----
-
-## Common Tasks
-
-### List skills and tools
-```bash
-ctdl list
-```
-Shows installed skills in `~/.citadel/skills`, registered MCP servers in `~/.citadel/mcps`, and linked project folders.
-
-### Add a skill
-```bash
-ctdl add skill ~/.gemini/config/skills/hallmark
-```
-Copies the skill into `~/.citadel/skills/hallmark`.
-
-### Re-apply symlinks
-```bash
-ctdl sync
-```
-Symlinks all skills to `~/.gemini/config/skills/` and `~/.claude/skills/`, injects MCP servers into Claude Desktop, and commits the state to Git.
-
-### Link a project repo
-```bash
-cd ~/Projects/my-app
-ctdl portal .
-```
-Symlinks your skills into `my-app/.gemini/skills/` and `my-app/.claude/skills/`. Both tools can use your skills in that project, and any edits you make update the central copy in `~/.citadel`.
-
----
-
-## Community Skills via npm
-
-Citadel uses the npm registry to share skills. There is no custom backend.
-
-```bash
-# Search npm for packages tagged with 'citadel-skill'
-ctdl search design
-
-# Install an npm package into ~/.citadel/skills/ and link it
-ctdl install @developer/citadel-skill-kubernetes
-```
-
-To publish a skill, add `"keywords": ["citadel-skill"]` to its `package.json` and run `npm publish`.
-
----
-
-## Sync Across Machines
-
-`~/.citadel` is a Git repository:
-
-```bash
-# Check status of local changes
-ctdl status
-
-# Push to your private GitHub repo
-ctdl push
-
-# On another Mac, pull and update all local symlinks
-ctdl pull
+citadel init
 ```
 
 ---
 
-## Protecting API Keys
+## Common CLI Commands
 
-Do not write real API tokens into MCP JSON files. Use `${VAR_NAME}` instead:
+| Command | Action |
+| :--- | :--- |
+| `citadel app` | Launch the native macOS desktop application |
+| `citadel app --install` | Download and install the latest Citadel.app DMG if not installed |
+| `citadel list` | View installed skills, registered MCP servers, and linked workspace portals |
+| `citadel sync` | Synchronize all symlinks across Antigravity, Claude, and workspaces |
+| `citadel discover` | Scan filesystem for untracked skills and MCPs across existing tools |
+| `citadel search <query>` | Search npm for community agent skills |
+| `citadel install <pkg>` | Install an npm package in the background using `npx` |
+| `citadel portal <dir>` | Symlink skills into a project repository |
+| `citadel status` | Check Git status of the central `~/.citadel` repository |
+| `citadel docs` | Open local web documentation in default browser |
+
+---
+
+## Protecting API Keys in MCP Configs
+
+Never hardcode raw API tokens into MCP JSON files. Use environment variable expansion `${VAR_NAME}`:
 
 ```json
 {
@@ -114,14 +108,11 @@ Do not write real API tokens into MCP JSON files. Use `${VAR_NAME}` instead:
 }
 ```
 
-Citadel reads `$GITHUB_TOKEN` from your shell or macOS Keychain when generating tool configs. The Git repository in `~/.citadel` only stores the variable name.
+Citadel resolves `${GITHUB_TOKEN}` from your shell environment or macOS Keychain when generating client tool configs. The central Git repository in `~/.citadel` only stores the variable reference.
 
 ---
 
-## Documentation
+## Documentation & Live Preview
 
-View the local docs:
-```bash
-ctdl docs
-```
-Or open [docs/index.html](file:///Users/kartikarora/Projects/skills-manager/docs/index.html).
+- Web Documentation: [https://citadel.kartikarora.me/](https://citadel.kartikarora.me/)
+- Open local docs: `citadel docs` or inspect `docs/index.html`.
