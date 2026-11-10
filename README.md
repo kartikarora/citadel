@@ -62,7 +62,18 @@ Grab the latest release from [citadel.kartikarora.me](https://citadel.kartikaror
 - Drag `Citadel.app` to `/Applications`
 - Run the 5-step onboarding wizard to set up your directory, SSH signing key, theme, and initial scan.
 
-### 2. Or Build / Install CLI from Source
+### 2. Install Standalone CLI (Curl One-Liner)
+Install `citadel` and `ctdl` into `~/.local/bin` with autocompletions for Zsh, Bash, and Fish:
+```bash
+curl -fsSL https://citadel.kartikarora.me/install.sh | bash
+```
+
+### 3. Or Install via Homebrew
+```bash
+brew install kartikarora/tap/citadel
+```
+
+### 4. Or Build CLI from Source
 ```bash
 git clone https://github.com/kartikarora/citadel.git
 cd citadel

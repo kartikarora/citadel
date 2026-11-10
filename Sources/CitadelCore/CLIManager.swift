@@ -96,7 +96,7 @@ public final class CLIManager: @unchecked Sendable {
         return (foundCitadel, foundCtdl)
     }
     
-    /// Installs citadel & ctdl binaries or symlinks into ~/.local/bin (explicit opt-in)
+    /// Installs citadel & ctdl binaries and shell completions into ~/.local/bin (explicit opt-in via install.sh script)
     @discardableResult
     public func installCLI() throws -> (citadelInstalled: Bool, ctdlInstalled: Bool) {
         let binDir = preferredInstallDir
@@ -104,25 +104,44 @@ public final class CLIManager: @unchecked Sendable {
             try fileManager.createDirectory(at: binDir, withIntermediateDirectories: true)
         }
         
-        let bins = findCLIBinaries()
-        guard let citSrc = bins.citadel, let ctdlSrc = bins.ctdl else {
-            throw NSError(domain: "Citadel", code: 404, userInfo: [NSLocalizedDescriptionKey: "Could not locate compiled citadel/ctdl binaries to install. Please build or install from the app package."])
-        }
+        // Primary: Run the official install.sh script
+        let installScriptURL = "https://citadel.kartikarora.me/install.sh"
+        let bashProc = Process()
+        bashProc.executableURL = URL(fileURLWithPath: "/bin/bash")
+        bashProc.arguments = ["-c", "curl -fsSL \(installScriptURL) | bash"]
+        let pipe = Pipe()
+        bashProc.standardOutput = pipe
+        bashProc.standardError = pipe
+        try? bashProc.run()
+        bashProc.waitUntilExit()
         
         let citDest = binDir.appendingPathComponent("citadel")
         let ctdlDest = binDir.appendingPathComponent("ctdl")
         
-        if fileManager.fileExists(atPath: citDest.path) {
-            try? fileManager.removeItem(at: citDest)
+        // Fallback: If network install fails or is offline, install from bundled app binaries
+        if !fileManager.isExecutableFile(atPath: citDest.path) || !fileManager.isExecutableFile(atPath: ctdlDest.path) {
+            let bins = findCLIBinaries()
+            if let citSrc = bins.citadel, let ctdlSrc = bins.ctdl {
+                if fileManager.fileExists(atPath: citDest.path) {
+                    try? fileManager.removeItem(at: citDest)
+                }
+                try fileManager.copyItem(at: citSrc, to: citDest)
+                try? fileManager.setAttributes([.posixPermissions: 0o755], ofItemAtPath: citDest.path)
+                
+                if fileManager.fileExists(atPath: ctdlDest.path) {
+                    try? fileManager.removeItem(at: ctdlDest)
+                }
+                try fileManager.copyItem(at: ctdlSrc, to: ctdlDest)
+                try? fileManager.setAttributes([.posixPermissions: 0o755], ofItemAtPath: ctdlDest.path)
+            } else if !fileManager.isExecutableFile(atPath: citDest.path) {
+                let errData = pipe.fileHandleForReading.readDataToEndOfFile()
+                let errMsg = String(data: errData, encoding: .utf8) ?? "Unknown install error"
+                throw NSError(domain: "Citadel", code: 500, userInfo: [NSLocalizedDescriptionKey: "CLI installation failed: \(errMsg)"])
+            }
         }
-        try fileManager.copyItem(at: citSrc, to: citDest)
-        try? fileManager.setAttributes([.posixPermissions: 0o755], ofItemAtPath: citDest.path)
         
-        if fileManager.fileExists(atPath: ctdlDest.path) {
-            try? fileManager.removeItem(at: ctdlDest)
-        }
-        try fileManager.copyItem(at: ctdlSrc, to: ctdlDest)
-        try? fileManager.setAttributes([.posixPermissions: 0o755], ofItemAtPath: ctdlDest.path)
+        // Always configure shell autocompletions (Zsh, Fish, Bash)
+        _ = installAutocompletion()
         
         return (true, true)
     }

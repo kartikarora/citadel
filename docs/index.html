@@ -668,8 +668,34 @@
         </div>
         <p>Open the DMG and drag <strong>Citadel.app</strong> into your Applications folder. When launched, onboarding will guide you through directory setup, theme selection, and optional CLI installation.</p>
 
-        <h3>2. Install Frontend via Standalone CLI</h3>
-        <p>If you already have the CLI binary installed and want the desktop frontend:</p>
+        <h3>2. Standalone CLI (Curl One-Liner)</h3>
+        <p>Install <code>citadel</code> and <code>ctdl</code> into <code>~/.local/bin</code> with automatic Zsh, Bash, and Fish autocompletions:</p>
+        <div class="code-terminal">
+          <div class="code-terminal-bar">
+            <span>Terminal</span>
+            <span>Curl One-Liner</span>
+          </div>
+          <div class="code-terminal-body">
+            <div><span class="terminal-prompt">$</span>curl -fsSL https://citadel.kartikarora.me/install.sh | bash</div>
+            <div class="terminal-out">==> Downloading Citadel CLI...</div>
+            <div class="terminal-out">==> Configuring shell autocompletions (zsh, fish, bash)...</div>
+            <div class="terminal-out">✅ Citadel CLI installed successfully into ~/.local/bin!</div>
+          </div>
+        </div>
+
+        <h3>3. Homebrew Tap</h3>
+        <div class="code-terminal">
+          <div class="code-terminal-bar">
+            <span>Terminal</span>
+            <span>Homebrew</span>
+          </div>
+          <div class="code-terminal-body">
+            <div><span class="terminal-prompt">$</span>brew install kartikarora/tap/citadel</div>
+          </div>
+        </div>
+
+        <h3>4. Install Frontend via Standalone CLI</h3>
+        <p>If you have the CLI binary installed and want the desktop frontend:</p>
         <div class="code-terminal">
           <div class="code-terminal-bar">
             <span>Terminal</span>
@@ -684,7 +710,7 @@
           </div>
         </div>
 
-        <h3>3. Build CLI from Source</h3>
+        <h3>5. Build CLI from Source</h3>
         <div class="code-terminal">
           <div class="code-terminal-bar">
             <span>Terminal</span>

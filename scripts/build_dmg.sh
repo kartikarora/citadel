@@ -119,5 +119,10 @@ hdiutil create -volname "${APP_NAME}" \
     -ov -format UDZO \
     "${OUTPUT_DIR}/${DMG_NAME}"
 
+echo "==> Generating Standalone CLI Archive..."
+CLI_ARCHIVE="${OUTPUT_DIR}/citadel-${VERSION}-macOS-arm64.tar.gz"
+tar -czf "${CLI_ARCHIVE}" -C "${BUILD_DIR}" citadel ctdl
+echo "==> Successfully created ${CLI_ARCHIVE}"
+
 rm -rf "${DMG_STAGING}"
 echo "==> Successfully created ${OUTPUT_DIR}/${DMG_NAME}"
