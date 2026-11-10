@@ -339,24 +339,24 @@ func runAllCitadelTests() throws {
     expect(readMarker?.deviceUsername == "testuser", "readSyncMarker reads correct device username")
     
     // Test OnboardingViewModel existing sync repo re-use prompt state with arbitrary repo name (custom-dotfiles)
-    let testDefaults = UserDefaults(suiteName: "citadel_test_reuse_repo_\(UUID().uuidString)")!
-    let onboardingVM = OnboardingViewModel(testDefaults: testDefaults)
-    expect(onboardingVM.showReuseRepoPrompt == false, "Initial showReuseRepoPrompt is false")
+    let reuseTestDefaults = UserDefaults(suiteName: "citadel_test_reuse_repo_\(UUID().uuidString)")!
+    let reuseOnboardingVM = OnboardingViewModel(testDefaults: reuseTestDefaults)
+    expect(reuseOnboardingVM.showReuseRepoPrompt == false, "Initial showReuseRepoPrompt is false")
     
-    onboardingVM.foundExistingSyncRepo = true
-    onboardingVM.existingSyncRepoName = "custom-dotfiles"
-    onboardingVM.existingSyncRepoFullName = "testuser/custom-dotfiles"
-    onboardingVM.existingSyncRepoCloneURL = "git@github.com:testuser/custom-dotfiles.git"
-    onboardingVM.existingSyncRepoProvider = .github
-    onboardingVM.existingSyncRepoMarker = testMarker
-    onboardingVM.showReuseRepoPrompt = true
+    reuseOnboardingVM.foundExistingSyncRepo = true
+    reuseOnboardingVM.existingSyncRepoName = "custom-dotfiles"
+    reuseOnboardingVM.existingSyncRepoFullName = "testuser/custom-dotfiles"
+    reuseOnboardingVM.existingSyncRepoCloneURL = "git@github.com:testuser/custom-dotfiles.git"
+    reuseOnboardingVM.existingSyncRepoProvider = GitProvider.github
+    reuseOnboardingVM.existingSyncRepoMarker = testMarker
+    reuseOnboardingVM.showReuseRepoPrompt = true
     
-    expect(onboardingVM.showReuseRepoPrompt == true, "showReuseRepoPrompt is activated when existing sync repo is detected")
-    expect(onboardingVM.existingSyncRepoName == "custom-dotfiles", "Repo identified by marker regardless of name")
-    expect(onboardingVM.existingSyncRepoMarker?.syncStoreId == "store-test-uuid-12345", "existingSyncRepoMarker holds verified syncStoreId")
+    expect(reuseOnboardingVM.showReuseRepoPrompt == true, "showReuseRepoPrompt is activated when existing sync repo is detected")
+    expect(reuseOnboardingVM.existingSyncRepoName == "custom-dotfiles", "Repo identified by marker regardless of name")
+    expect(reuseOnboardingVM.existingSyncRepoMarker?.syncStoreId == "store-test-uuid-12345", "existingSyncRepoMarker holds verified syncStoreId")
     
-    onboardingVM.reuseExistingSyncRepo()
-    expect(onboardingVM.showReuseRepoPrompt == false, "reuseExistingSyncRepo sets remote and dismisses prompt")
+    reuseOnboardingVM.reuseExistingSyncRepo()
+    expect(reuseOnboardingVM.showReuseRepoPrompt == false, "reuseExistingSyncRepo sets remote and dismisses prompt")
     
     // Test RemoteSyncManager remote origin setting and removal
     let testRepoURL = "https://github.com/testuser/citadel-sync.git"
