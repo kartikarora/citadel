@@ -638,6 +638,7 @@ final class CitadelStore: ObservableObject {
     @Published var rollbackNotice: String = ""
     @Published var cliInstallationNotice: String = ""
     @Published var cliErrorMessage: String? = nil
+    @Published var selectedSkillPortalTarget: Skill? = nil
     
     // Existing Sync Repo Detection & Re-use Prompt (Identified by SyncMarker, not by name)
     @Published var existingSyncRepoFound: Bool = false
@@ -930,6 +931,24 @@ final class CitadelStore: ObservableObject {
             try? HubManager.shared.savePortals(existing)
             syncAll()
         }
+    }
+    
+    /// Toggles whether a specific skill is symlinked into a specific workspace portal
+    func toggleSkillForWorkspace(skillName: String, workspaceURL: URL) {
+        var existing = HubManager.shared.loadPortals()
+        guard let idx = existing.firstIndex(where: { $0.projectPath.path == workspaceURL.path }) else {
+            return
+        }
+        var enabled = existing[idx].enabledSkills
+        if enabled.contains(skillName) {
+            enabled.removeAll { $0 == skillName }
+        } else {
+            enabled.append(skillName)
+        }
+        existing[idx].enabledSkills = enabled
+        try? HubManager.shared.savePortals(existing)
+        self.portals = existing
+        syncAll()
     }
     
     func pushRemote() {
@@ -2983,6 +3002,10 @@ struct ArmoryChamber: View {
                                 withAnimation(BrandMotion.fastSpring) {
                                     store.showSkillPreview = false
                                 }
+                            },
+                            portals: store.portals,
+                            onToggleWorkspacePortal: { workspaceURL in
+                                store.toggleSkillForWorkspace(skillName: skill.name, workspaceURL: workspaceURL)
                             }
                         )
                     } else {

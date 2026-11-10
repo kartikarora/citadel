@@ -287,14 +287,25 @@ func runAllCitadelTests() throws {
     expect(discoveryVM.selectedSkill?.description?.contains("Advanced Git") == true, "inspectSkillGroup extracts description")
     expect(discoveryVM.skillContent.contains("interactive rebase"), "inspectSkillGroup loads skill content for View Skill")
     
-    // Test instantiating shared SkillDetailView
+    // Test instantiating shared SkillDetailView with portal workspace options
+    let testPortalDir = FileManager.default.temporaryDirectory.appendingPathComponent("citadel_test_portal_ws_\(UUID().uuidString)")
+    let testPortal = ProjectPortal(projectPath: testPortalDir, enabledSkills: ["git-advanced"])
+    var toggledWorkspaceURL: URL? = nil
     let detailView = SkillDetailView(
         skill: discoveryVM.selectedSkill!,
         content: discoveryVM.skillContent,
-        palette: ThemePalette.forPreset(.dark)
+        palette: ThemePalette.forPreset(.dark),
+        portals: [testPortal],
+        onToggleWorkspacePortal: { url in
+            toggledWorkspaceURL = url
+        }
     )
     expect(detailView.skill.name == "git-advanced", "SkillDetailView initialized with skill")
     expect(detailView.skill.author == "Jane Doe", "SkillDetailView contains author")
+    expect(detailView.portals.count == 1, "SkillDetailView accepts portals list")
+    expect(detailView.portals.first?.enabledSkills.contains("git-advanced") == true, "SkillDetailView detects enabled skills for portal")
+    detailView.onToggleWorkspacePortal?(testPortalDir)
+    expect(toggledWorkspaceURL?.path == testPortalDir.path, "SkillDetailView triggers onToggleWorkspacePortal callback")
     
     // Suite 11: Sync Marker Manifest & Onboarding Re-use Repo Flow
     print("\n[Suite 11/11: SyncMarker & Onboarding Repo Re-use Flow]")

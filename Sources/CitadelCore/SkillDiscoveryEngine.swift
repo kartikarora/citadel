@@ -141,6 +141,9 @@ public final class SkillDiscoveryEngine: @unchecked Sendable {
             try? fileManager.removeItem(at: skill.path)
             try fileManager.createSymbolicLink(at: skill.path, withDestinationURL: dest)
         }
+        
+        // Ensure each ingested skill is immediately symlinked to global skills dirs across the Multiverse
+        _ = try? SyncEngine.shared.syncAll()
     }
     
     private func determineKind(for url: URL) -> String {

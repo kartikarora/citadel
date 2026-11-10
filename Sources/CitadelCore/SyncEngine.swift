@@ -158,6 +158,15 @@ public final class SyncEngine: @unchecked Sendable {
         if portal.targetTools.contains(.antigravityGlobal) {
             let repoAgyDir = portal.projectPath.appendingPathComponent(".gemini/skills")
             if (try? fileManager.createDirectory(at: repoAgyDir, withIntermediateDirectories: true)) != nil {
+                let enabledNames = Set(selectedSkills.map { $0.name })
+                // Prune any existing skill symlinks that are no longer enabled
+                if let existingItems = try? fileManager.contentsOfDirectory(at: repoAgyDir, includingPropertiesForKeys: nil) {
+                    for item in existingItems {
+                        if !enabledNames.contains(item.lastPathComponent) {
+                            try? fileManager.removeItem(at: item)
+                        }
+                    }
+                }
                 for skill in selectedSkills {
                     let dest = repoAgyDir.appendingPathComponent(skill.name)
                     if link(source: skill.path, destination: dest) {
@@ -171,6 +180,15 @@ public final class SyncEngine: @unchecked Sendable {
         if portal.targetTools.contains(.claudeCode) {
             let repoClaudeDir = portal.projectPath.appendingPathComponent(".claude/skills")
             if (try? fileManager.createDirectory(at: repoClaudeDir, withIntermediateDirectories: true)) != nil {
+                let enabledNames = Set(selectedSkills.map { $0.name })
+                // Prune any existing skill symlinks that are no longer enabled
+                if let existingItems = try? fileManager.contentsOfDirectory(at: repoClaudeDir, includingPropertiesForKeys: nil) {
+                    for item in existingItems {
+                        if !enabledNames.contains(item.lastPathComponent) {
+                            try? fileManager.removeItem(at: item)
+                        }
+                    }
+                }
                 for skill in selectedSkills {
                     let dest = repoClaudeDir.appendingPathComponent(skill.name)
                     if link(source: skill.path, destination: dest) {

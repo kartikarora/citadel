@@ -9,17 +9,23 @@ public struct SkillDetailView: View {
     public let content: String
     public let palette: ThemePalette
     public var onClose: (() -> Void)? = nil
+    public var portals: [ProjectPortal] = []
+    public var onToggleWorkspacePortal: ((URL) -> Void)? = nil
     
     public init(
         skill: Skill,
         content: String,
         palette: ThemePalette,
-        onClose: (() -> Void)? = nil
+        onClose: (() -> Void)? = nil,
+        portals: [ProjectPortal] = [],
+        onToggleWorkspacePortal: ((URL) -> Void)? = nil
     ) {
         self.skill = skill
         self.content = content
         self.palette = palette
         self.onClose = onClose
+        self.portals = portals
+        self.onToggleWorkspacePortal = onToggleWorkspacePortal
     }
     
     public var body: some View {
@@ -92,6 +98,54 @@ public struct SkillDetailView: View {
             }
             .padding(BrandSpacing.md)
             .background(palette.background.opacity(0.2))
+            
+            // Workspace Portals Section: choose which workspaces this skill is symlinked into
+            if !portals.isEmpty {
+                VStack(alignment: .leading, spacing: BrandSpacing.xs) {
+                    HStack {
+                        Image(systemName: "point.3.filled.connected.trianglepath.dotted")
+                            .font(.system(size: 11))
+                            .foregroundColor(palette.accent)
+                        Text("WORKSPACE SYMLINKS")
+                            .font(.brandMonoBadge)
+                            .foregroundColor(palette.textPrimary)
+                        Spacer()
+                        Text("Select workspaces to symlink this skill")
+                            .font(.brandCaption)
+                            .foregroundColor(palette.textMuted)
+                    }
+                    
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: BrandSpacing.xs) {
+                            ForEach(portals) { portal in
+                                let isLinked = portal.enabledSkills.contains(skill.name)
+                                Button(action: {
+                                    onToggleWorkspacePortal?(portal.projectPath)
+                                }) {
+                                    HStack(spacing: 5) {
+                                        Image(systemName: isLinked ? "checkmark.circle.fill" : "circle")
+                                            .font(.system(size: 10))
+                                            .foregroundColor(isLinked ? palette.accent : palette.textMuted)
+                                        Text(portal.projectPath.lastPathComponent)
+                                            .font(.brandMono)
+                                            .foregroundColor(isLinked ? palette.textPrimary : palette.textSecondary)
+                                    }
+                                    .padding(.horizontal, BrandSpacing.sm)
+                                    .padding(.vertical, BrandSpacing.xxs + 1)
+                                    .liquidGlassPill(tint: isLinked ? palette.accent : nil)
+                                }
+                                .buttonStyle(.plain)
+                                .help(isLinked ? "Symlinked in \(portal.projectPath.path). Click to remove." : "Not linked in \(portal.projectPath.path). Click to symlink.")
+                            }
+                        }
+                    }
+                }
+                .padding(.horizontal, BrandSpacing.md)
+                .padding(.vertical, BrandSpacing.sm)
+                .background(palette.card.opacity(0.4))
+                
+                Divider().background(palette.border.opacity(0.3))
+            }
             
             Divider().background(palette.border.opacity(0.4))
             
