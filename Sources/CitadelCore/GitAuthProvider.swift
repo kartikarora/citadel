@@ -1,8 +1,5 @@
 import Foundation
 import Security
-#if canImport(AppKit)
-import AppKit
-#endif
 
 public struct DeviceCodeResponse: Sendable {
     public let deviceCode: String
