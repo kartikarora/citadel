@@ -37,6 +37,8 @@ public final class SettingsViewModel: ObservableObject {
         self.signingEnabled = flags.commitSigningEnabled
         self.portalsEnabled = flags.workspacePortalsEnabled
         self.backgroundSyncEnabled = flags.backgroundAutoSyncEnabled
+        
+        self.remoteStatus = RemoteSyncManager.shared.getStatus()
     }
     
     public func reloadAuthAndStatus() async {

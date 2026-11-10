@@ -31,15 +31,31 @@ public final class RemoteSyncManager: @unchecked Sendable {
         return trimmed.isEmpty ? nil : trimmed
     }
     
-    /// Sets or updates the remote origin URL
+    /// Sets or updates the remote origin URL, or removes it if urlString is empty
+    @discardableResult
     public func setRemoteURL(_ urlString: String, remote: String = "origin") -> (success: Bool, error: String?) {
+        let trimmed = urlString.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.isEmpty {
+            return removeRemote(remote: remote)
+        }
+        
         if getRemoteURL(remote: remote) != nil {
-            let res = runGit(["remote", "set-url", remote, urlString])
+            let res = runGit(["remote", "set-url", remote, trimmed])
             return (res.exitCode == 0, res.exitCode == 0 ? nil : res.output)
         } else {
-            let res = runGit(["remote", "add", remote, urlString])
+            let res = runGit(["remote", "add", remote, trimmed])
             return (res.exitCode == 0, res.exitCode == 0 ? nil : res.output)
         }
+    }
+    
+    /// Removes the remote if configured
+    @discardableResult
+    public func removeRemote(remote: String = "origin") -> (success: Bool, error: String?) {
+        guard getRemoteURL(remote: remote) != nil else {
+            return (true, nil)
+        }
+        let res = runGit(["remote", "remove", remote])
+        return (res.exitCode == 0, res.exitCode == 0 ? nil : res.output)
     }
     
     /// Gets detailed remote sync status

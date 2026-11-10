@@ -673,6 +673,12 @@ final class CitadelStore: ObservableObject {
         let hubPath = UserDefaults.standard.string(forKey: "customHubPath") ?? "~/.citadel"
         self.customHubPath = hubPath
         
+        // Synchronously load remote sync status from git config
+        let initialStatus = RemoteSyncManager.shared.getStatus()
+        self.remoteStatus = initialStatus
+        self.remoteURLString = initialStatus.remoteURL ?? ""
+        self.remoteRepoExists = initialStatus.isConfigured
+        
         // Detect if Citadel config or central directory is present
         let expanded = (hubPath as NSString).expandingTildeInPath
         let isConfigPresent = FileManager.default.fileExists(atPath: expanded)
@@ -684,11 +690,26 @@ final class CitadelStore: ObservableObject {
         }
     }
     
+    /// Synchronously re-reads remote status from git configuration and updates published properties
+    func refreshRemoteStatus() {
+        let status = RemoteSyncManager.shared.getStatus()
+        self.remoteStatus = status
+        if let r = status.remoteURL {
+            self.remoteURLString = r
+            self.remoteRepoExists = true
+        } else {
+            self.remoteRepoExists = false
+        }
+    }
+    
     func refresh() {
         try? HubManager.shared.initializeHub()
         self.skills = HubManager.shared.listArmorySkills()
         self.mcps = HubManager.shared.listArmoryMCPs()
         self.portals = HubManager.shared.loadPortals()
+        
+        // Immediately query remote status synchronously so UI updates without waiting for network
+        refreshRemoteStatus()
         
         Task {
             let gh = await GitAuthProvider.shared.getAuthenticatedUser(for: .github)
@@ -3467,6 +3488,9 @@ struct SettingsChamber: View {
             .padding(24)
             .frame(width: 480)
             .background(store.palette.card)
+        }
+        .onAppear {
+            store.refreshRemoteStatus()
         }
     }
 }
