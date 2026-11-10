@@ -199,6 +199,10 @@ func runAllCitadelTests() throws {
     expect(testOnboardingVM.currentStep == 4, "Reaches Step 4: Appearance")
     testOnboardingVM.nextStep()
     expect(testOnboardingVM.currentStep == 5, "Reaches Step 5: Discovery")
+    expect(testOnboardingVM.discoverySegment == "ai_config", "Default discovery segment is ai_config")
+    testOnboardingVM.discoverySegment = "workspaces"
+    expect(testOnboardingVM.discoverySegment == "workspaces", "Can toggle to workspaces discovery segment")
+    expect(testOnboardingVM.discoveredWorkspaces.isEmpty == true, "Starts with empty discoveredWorkspaces prior to permission scan")
     
     // Finish onboarding
     testOnboardingVM.completeOnboarding()

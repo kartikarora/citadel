@@ -566,6 +566,7 @@ final class CitadelStore: ObservableObject {
     @Published var signingKeyFingerprint: String = ""
     @Published var hasGrantedScanPermission: Bool = false
     @Published var isScanningOnboarding: Bool = false
+    @Published var onboardingDiscoverySegment: String = "ai_config"
     @Published var showDevResetBadge: Bool = true
     
     // Reset onboarding helper for development and testing
@@ -2025,11 +2026,11 @@ private struct Step5DiscoveryChamber: View {
                     .tracking(1.0)
                     .foregroundColor(store.palette.accent)
                 
-                Text("Discover Existing AI Skills")
+                Text("Discover Existing AI Skills & Workspaces")
                     .font(.brandTitle)
                     .foregroundColor(store.palette.textPrimary)
                 
-                Text("Citadel scans your user directories (~/.gemini, ~/.claude, ~/.cursor, ~/.android-studio, ~/.copilot, ~/.junie, Projects, Developer, Documents) for existing skills to index. You can also pick an additional custom project folder to grant explicit directory access.")
+                Text("Citadel discovers your environment without modifying or connecting anything automatically. Review AI configurations and project workspaces discovered across your system.")
                     .font(.brandBody)
                     .foregroundColor(store.palette.textSecondary)
                     .lineSpacing(3)
@@ -2044,10 +2045,10 @@ private struct Step5DiscoveryChamber: View {
                                 .font(.system(size: 24))
                                 .foregroundColor(store.palette.accent)
                             VStack(alignment: .leading, spacing: 2) {
-                                Text("Permission Request: Scan User Folders")
+                                Text("Permission Request: Scan User Folders & Projects")
                                     .font(.brandBodyBold)
                                     .foregroundColor(store.palette.textPrimary)
-                                Text("Only custom skills are indexed. Built-in editor skills are omitted.")
+                                Text("Discovers skills, MCP configurations, and workspaces without connecting them.")
                                     .font(.brandCaption)
                                     .foregroundColor(store.palette.textSecondary)
                             }
@@ -2090,44 +2091,172 @@ private struct Step5DiscoveryChamber: View {
                     HStack(spacing: BrandSpacing.sm) {
                         ProgressView()
                             .scaleEffect(0.8)
-                        Text("Scanning directories for custom skills...")
+                        Text("Scanning directories for AI configs and workspaces...")
                             .font(.brandBody)
                             .foregroundColor(store.palette.textSecondary)
                     }
                     .padding(.vertical, BrandSpacing.md)
                 } else {
-                    VStack(alignment: .leading, spacing: BrandSpacing.xs) {
+                    VStack(alignment: .leading, spacing: BrandSpacing.sm) {
+                        // Segmented Picker: AI Config vs Workspaces
                         HStack {
-                            Image(systemName: "checkmark.circle.fill")
-                                .foregroundColor(store.palette.success)
-                            Text("Scan Complete: Found \(store.discoveredSkills.count) custom skills (built-ins excluded)")
-                                .font(.brandBodyBold)
-                                .foregroundColor(store.palette.textPrimary)
+                            Picker("", selection: $store.onboardingDiscoverySegment) {
+                                Text("AI Config (\(store.discoveredSkills.count + store.discoveredMCPs.count))").tag("ai_config")
+                                Text("Workspaces (\(store.discoveredWorkspaces.count))").tag("workspaces")
+                            }
+                            .pickerStyle(.segmented)
+                            .frame(maxWidth: 320)
+                            
+                            Spacer()
+                            
+                            Text("Discovered • Not connected")
+                                .font(.brandMonoMicro)
+                                .foregroundColor(store.palette.textMuted)
                         }
                         
-                        ScrollView {
-                            VStack(alignment: .leading, spacing: 4) {
-                                ForEach(store.discoveredSkills.prefix(6)) { skill in
-                                    HStack {
-                                        Text(skill.name)
-                                            .font(.brandMono)
-                                            .foregroundColor(store.palette.textPrimary)
-                                        Spacer()
-                                        Text(skill.sourceKind)
+                        if store.onboardingDiscoverySegment == "ai_config" {
+                            // AI Config Segment (Skills & MCP Servers)
+                            ScrollView {
+                                VStack(alignment: .leading, spacing: 6) {
+                                    if !store.discoveredSkills.isEmpty {
+                                        Text("SKILLS (\(store.discoveredSkills.count))")
                                             .font(.brandMonoMicro)
-                                            .foregroundColor(store.palette.textMuted)
+                                            .foregroundColor(store.palette.accent)
+                                            .padding(.top, 2)
+                                        
+                                        ForEach(store.discoveredSkills.prefix(6)) { skill in
+                                            HStack {
+                                                Image(systemName: "sparkles")
+                                                    .font(.system(size: 10))
+                                                    .foregroundColor(store.palette.accent)
+                                                Text(skill.name)
+                                                    .font(.brandMono)
+                                                    .foregroundColor(store.palette.textPrimary)
+                                                Spacer()
+                                                Text(skill.sourceKind)
+                                                    .font(.brandMonoMicro)
+                                                    .foregroundColor(store.palette.textMuted)
+                                            }
+                                            .padding(.vertical, 2)
+                                        }
+                                        if store.discoveredSkills.count > 6 {
+                                            Text("+ \(store.discoveredSkills.count - 6) more skills")
+                                                .font(.brandCaption)
+                                                .foregroundColor(store.palette.textMuted)
+                                        }
                                     }
-                                    .padding(.vertical, 2)
-                                }
-                                if store.discoveredSkills.count > 6 {
-                                    Text("+ \(store.discoveredSkills.count - 6) more skills")
-                                        .font(.brandCaption)
-                                        .foregroundColor(store.palette.textMuted)
-                                        .padding(.top, 2)
+                                    
+                                    if !store.discoveredMCPs.isEmpty {
+                                        Text("MCP CONFIGURATIONS (\(store.discoveredMCPs.count))")
+                                            .font(.brandMonoMicro)
+                                            .foregroundColor(store.palette.accent)
+                                            .padding(.top, 6)
+                                        
+                                        ForEach(store.discoveredMCPs.prefix(4)) { mcp in
+                                            HStack {
+                                                Image(systemName: "server.rack")
+                                                    .font(.system(size: 10))
+                                                    .foregroundColor(store.palette.textMuted)
+                                                Text(mcp.name)
+                                                    .font(.brandMono)
+                                                    .foregroundColor(store.palette.textPrimary)
+                                                Spacer()
+                                                Text(mcp.clientName)
+                                                    .font(.brandMonoMicro)
+                                                    .foregroundColor(store.palette.textMuted)
+                                            }
+                                            .padding(.vertical, 2)
+                                        }
+                                    }
+                                    
+                                    if store.discoveredSkills.isEmpty && store.discoveredMCPs.isEmpty {
+                                        Text("No existing AI configurations detected.")
+                                            .font(.brandCaption)
+                                            .foregroundColor(store.palette.textMuted)
+                                            .padding(.vertical, 8)
+                                    }
                                 }
                             }
+                            .frame(maxHeight: 140)
+                        } else {
+                            // Workspaces Segment (Discovered without connecting)
+                            ScrollView {
+                                VStack(alignment: .leading, spacing: 6) {
+                                    if store.discoveredWorkspaces.isEmpty {
+                                        Text("No Git workspaces found in standard search roots.")
+                                            .font(.brandCaption)
+                                            .foregroundColor(store.palette.textMuted)
+                                            .padding(.vertical, 8)
+                                    } else {
+                                        ForEach(store.discoveredWorkspaces.prefix(8)) { ws in
+                                            HStack(spacing: 8) {
+                                                Image(systemName: "folder")
+                                                    .font(.system(size: 11))
+                                                    .foregroundColor(store.palette.accent)
+                                                
+                                                VStack(alignment: .leading, spacing: 1) {
+                                                    Text(ws.name)
+                                                        .font(.brandMono)
+                                                        .foregroundColor(store.palette.textPrimary)
+                                                    Text(ws.path.path)
+                                                        .font(.brandMonoMicro)
+                                                        .foregroundColor(store.palette.textMuted)
+                                                        .lineLimit(1)
+                                                }
+                                                
+                                                Spacer()
+                                                
+                                                HStack(spacing: 3) {
+                                                    if ws.hasGemini {
+                                                        Text("gemini")
+                                                            .font(.brandMonoMicro)
+                                                            .foregroundColor(store.palette.textSecondary)
+                                                            .padding(.horizontal, 4)
+                                                            .padding(.vertical, 1)
+                                                            .background(store.palette.accentMuted)
+                                                            .clipShape(BrandShapes.pill)
+                                                    }
+                                                    if ws.hasClaude {
+                                                        Text("claude")
+                                                            .font(.brandMonoMicro)
+                                                            .foregroundColor(store.palette.textSecondary)
+                                                            .padding(.horizontal, 4)
+                                                            .padding(.vertical, 1)
+                                                            .background(store.palette.accentMuted)
+                                                            .clipShape(BrandShapes.pill)
+                                                    }
+                                                    if ws.hasCursor {
+                                                        Text("cursor")
+                                                            .font(.brandMonoMicro)
+                                                            .foregroundColor(store.palette.textSecondary)
+                                                            .padding(.horizontal, 4)
+                                                            .padding(.vertical, 1)
+                                                            .background(store.palette.accentMuted)
+                                                            .clipShape(BrandShapes.pill)
+                                                    }
+                                                }
+                                                
+                                                Text("DISCOVERED")
+                                                    .font(.brandMonoMicro)
+                                                    .foregroundColor(store.palette.textMuted)
+                                                    .padding(.horizontal, 5)
+                                                    .padding(.vertical, 1)
+                                                    .background(store.palette.background)
+                                                    .clipShape(BrandShapes.pill)
+                                            }
+                                            .padding(.vertical, 3)
+                                        }
+                                        if store.discoveredWorkspaces.count > 8 {
+                                            Text("+ \(store.discoveredWorkspaces.count - 8) more workspaces discovered")
+                                                .font(.brandCaption)
+                                                .foregroundColor(store.palette.textMuted)
+                                                .padding(.top, 2)
+                                        }
+                                    }
+                                }
+                            }
+                            .frame(maxHeight: 140)
                         }
-                        .frame(maxHeight: 120)
                     }
                 }
             }
@@ -2140,9 +2269,12 @@ private struct Step5DiscoveryChamber: View {
         store.hasGrantedScanPermission = true
         store.isScanningOnboarding = true
         Task {
-            let found = SkillDiscoveryEngine.shared.discoverSkills(includeBuiltin: false)
+            let report = await MultiverseDiscoveryEngine.shared.runFullDiscoveryAsync(workspaceRoots: nil)
             await MainActor.run {
-                store.discoveredSkills = found
+                store.discoveredSkills = report.skills
+                store.skillGroups = SkillGroupManager.shared.groupDiscoveredSkills(report.skills)
+                store.discoveredMCPs = report.mcps
+                store.discoveredWorkspaces = report.workspaces
                 store.isScanningOnboarding = false
             }
         }
@@ -2161,9 +2293,12 @@ private struct Step5DiscoveryChamber: View {
             Task {
                 var roots = SkillDiscoveryEngine.shared.defaultScanRoots
                 roots.append(contentsOf: selectedURLs)
-                let found = SkillDiscoveryEngine.shared.discoverSkills(in: roots, includeBuiltin: false)
+                let report = await MultiverseDiscoveryEngine.shared.runFullDiscoveryAsync(workspaceRoots: roots)
                 await MainActor.run {
-                    store.discoveredSkills = found
+                    store.discoveredSkills = report.skills
+                    store.skillGroups = SkillGroupManager.shared.groupDiscoveredSkills(report.skills)
+                    store.discoveredMCPs = report.mcps
+                    store.discoveredWorkspaces = report.workspaces
                     store.isScanningOnboarding = false
                 }
             }

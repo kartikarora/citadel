@@ -41,7 +41,10 @@ public final class OnboardingViewModel: ObservableObject {
     // Step 5: Discovery & System Scan with Permission
     @Published public var hasGrantedScanPermission: Bool = false
     @Published public var isScanningSkills: Bool = false
+    @Published public var discoverySegment: String = "ai_config"
     @Published public var discoveredSkills: [DiscoveredSkill] = []
+    @Published public var discoveredMCPs: [DiscoveredMCP] = []
+    @Published public var discoveredWorkspaces: [DiscoveredWorkspace] = []
     
     public init(testDefaults: UserDefaults = .standard) {
         self.defaults = testDefaults
@@ -81,12 +84,12 @@ public final class OnboardingViewModel: ObservableObject {
         self.hasGrantedScanPermission = true
         self.isScanningSkills = true
         Task {
-            let skills = await Task.detached(priority: .userInitiated) {
-                SkillDiscoveryEngine.shared.discoverSkills(in: customRoots, includeBuiltin: false)
-            }.value
+            let report = await MultiverseDiscoveryEngine.shared.runFullDiscoveryAsync(workspaceRoots: customRoots)
             
             await MainActor.run {
-                self.discoveredSkills = skills
+                self.discoveredSkills = report.skills
+                self.discoveredMCPs = report.mcps
+                self.discoveredWorkspaces = report.workspaces
                 self.isScanningSkills = false
             }
         }
