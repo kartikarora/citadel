@@ -1,0 +1,25 @@
+cask "citadel" do
+  version "__VERSION__"
+  sha256 "__DMG_SHA256__"
+
+  url "https://github.com/kartikarora/citadel/releases/download/#{version}/Citadel-#{version}.dmg",
+      verified: "github.com/kartikarora/citadel/"
+  name "Citadel"
+  desc "Native macOS command center for managing AI coding skills & MCP servers"
+  homepage "https://citadel.kartikarora.me/"
+
+  livecheck do
+    url :url
+    strategy :github_latest
+  end
+
+  depends_on macos: ">= :sonoma"
+
+  app "Citadel.app"
+
+  zap trash: [
+    "~/Library/Application Support/Citadel",
+    "~/Library/Caches/me.kartikarora.Citadel",
+    "~/Library/Preferences/me.kartikarora.Citadel.plist",
+  ]
+end

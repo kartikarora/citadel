@@ -56,3 +56,14 @@ jobs:
           prerelease: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Update Homebrew Tap
+        if: startsWith(github.ref, 'refs/tags/')
+        env:
+          GITHUB_TOKEN: ${{ secrets.TAP_GITHUB_TOKEN || secrets.GITHUB_TOKEN }}
+        run: |
+          VERSION="${{ github.ref_name }}"
+          VERSION="${VERSION#v}"
+          DMG_FILE=$(ls dist/Citadel-*.dmg | head -n 1)
+          TAR_FILE=$(ls dist/citadel-*.tar.gz | head -n 1)
+          ./scripts/update_homebrew_tap.sh "$VERSION" "$DMG_FILE" "$TAR_FILE" "kartikarora/homebrew-tap" || echo "Warning: Homebrew tap update skipped (check token permissions or repo existence)"

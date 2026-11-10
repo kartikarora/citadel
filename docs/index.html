@@ -683,13 +683,20 @@
           </div>
         </div>
 
-        <h3>3. Homebrew Tap</h3>
+        <h3>3. Homebrew (Tap & Cask)</h3>
+        <p>Citadel is available via the custom tap <code>kartikarora/tap</code> for both the native frontend macOS application and the standalone CLI tool:</p>
         <div class="code-terminal">
           <div class="code-terminal-bar">
             <span>Terminal</span>
             <span>Homebrew</span>
           </div>
           <div class="code-terminal-body">
+            <div class="terminal-comment"># Install native frontend application (Citadel.app)</div>
+            <div><span class="terminal-prompt">$</span>brew install --cask kartikarora/tap/citadel</div>
+            <div class="terminal-out">==> Downloading Citadel-0.1.0.dmg...</div>
+            <div class="terminal-out">==> Moving App 'Citadel.app' to '/Applications/Citadel.app'</div>
+            <br>
+            <div class="terminal-comment"># Or install standalone CLI binary (citadel & ctdl)</div>
             <div><span class="terminal-prompt">$</span>brew install kartikarora/tap/citadel</div>
           </div>
         </div>

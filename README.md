@@ -68,7 +68,12 @@ Install `citadel` and `ctdl` into `~/.local/bin` with autocompletions for Zsh, B
 curl -fsSL https://citadel.kartikarora.me/install.sh | bash
 ```
 
-### 3. Or Install via Homebrew
+### 3. Or Install via Homebrew (Cask & Tap)
+Install the native macOS desktop app via Homebrew Cask:
+```bash
+brew install --cask kartikarora/tap/citadel
+```
+Or install the standalone CLI binary:
 ```bash
 brew install kartikarora/tap/citadel
 ```
