@@ -15,3 +15,6 @@ citadel.env
 *.swp
 *~
 dist/
+
+# Cloudflare Wrangler
+.wrangler/

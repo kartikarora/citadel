@@ -18,6 +18,34 @@ public final class CLIManager: @unchecked Sendable {
         return fileManager.fileExists(atPath: citadel.path) || fileManager.fileExists(atPath: ctdl.path)
     }
     
+    /// Finds the npx executable across standard macOS / POSIX path locations
+    public func findNpxBinary() -> URL? {
+        let candidates = [
+            "/usr/local/bin/npx",
+            "/opt/homebrew/bin/npx",
+            "/usr/bin/npx",
+            fileManager.homeDirectoryForCurrentUser.appendingPathComponent(".nvm/versions/node").path,
+            fileManager.homeDirectoryForCurrentUser.appendingPathComponent(".local/bin/npx").path
+        ]
+        
+        for c in candidates {
+            if fileManager.isExecutableFile(atPath: c) {
+                return URL(fileURLWithPath: c)
+            }
+        }
+        
+        // Check which npx in PATH via process
+        let whichRes = CitadelUtils.runProcess(executable: "/usr/bin/which", arguments: ["npx"])
+        if whichRes.exitCode == 0 {
+            let path = whichRes.output.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !path.isEmpty && fileManager.isExecutableFile(atPath: path) {
+                return URL(fileURLWithPath: path)
+            }
+        }
+        
+        return nil
+    }
+    
     /// Finds built CLI binaries from the running app bundle or build folder
     public func findCLIBinaries() -> (citadel: URL?, ctdl: URL?) {
         var searchPaths: [URL] = []

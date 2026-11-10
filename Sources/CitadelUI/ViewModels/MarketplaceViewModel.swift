@@ -8,6 +8,7 @@ public final class MarketplaceViewModel: ObservableObject {
     @Published public var marketPackages: [NPMSkillPackage] = []
     @Published public var isSearchingMarket: Bool = false
     @Published public var installingPackage: String? = nil
+    @Published public var removingPackage: String? = nil
     @Published public var installationNotice: String = ""
     
     public init() {}
@@ -42,13 +43,32 @@ public final class MarketplaceViewModel: ObservableObject {
                 _ = try await NPMRegistry.shared.install(packageSpec: pkg.name)
                 await MainActor.run {
                     self.installingPackage = nil
-                    self.installationNotice = "Installed \(pkg.name)"
+                    self.installationNotice = "Installed \(pkg.name) via NPX"
                     onComplete()
                 }
             } catch {
                 await MainActor.run {
                     self.installingPackage = nil
                     self.installationNotice = "Installation failed: \(error.localizedDescription)"
+                }
+            }
+        }
+    }
+    
+    public func removePackage(skillName: String, onComplete: @escaping () -> Void) {
+        removingPackage = skillName
+        Task {
+            do {
+                try await NPMRegistry.shared.remove(skillName: skillName)
+                await MainActor.run {
+                    self.removingPackage = nil
+                    self.installationNotice = "Removed \(skillName) via NPX"
+                    onComplete()
+                }
+            } catch {
+                await MainActor.run {
+                    self.removingPackage = nil
+                    self.installationNotice = "Removal failed: \(error.localizedDescription)"
                 }
             }
         }

@@ -1,0 +1,17 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "citadel",
+  "compatibility_date": "2026-11-09",
+  "observability": {
+    "enabled": true
+  },
+  "assets": {
+    "directory": "docs"
+  },
+  "routes": [
+    {
+      "pattern": "citadel.kartikarora.me",
+      "custom_domain": true
+    }
+  ]
+}

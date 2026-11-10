@@ -50,13 +50,13 @@ public final class FeatureFlags: ObservableObject, @unchecked Sendable {
         
         let env = ProcessInfo.processInfo.environment
         
-        // 1. NPM Marketplace (Default: OFF)
+        // 1. NPM Skills Management (Default: ON)
         if let envVal = env["CITADEL_ENABLE_MARKETPLACE"] {
             self.npmMarketplaceEnabled = (envVal == "1" || envVal.lowercased() == "true")
         } else if testDefaults.object(forKey: Keys.npmMarketplace) != nil {
             self.npmMarketplaceEnabled = testDefaults.bool(forKey: Keys.npmMarketplace)
         } else {
-            self.npmMarketplaceEnabled = false
+            self.npmMarketplaceEnabled = true
         }
         
         // 2. MCP Sync (Default: OFF)
@@ -124,7 +124,7 @@ public final class FeatureFlags: ObservableObject, @unchecked Sendable {
     }
     
     public func resetToDefaults() {
-        self.npmMarketplaceEnabled = false
+        self.npmMarketplaceEnabled = true
         self.mcpSyncEnabled = false
         self.githubIntegrationEnabled = true
         self.gitlabIntegrationEnabled = false

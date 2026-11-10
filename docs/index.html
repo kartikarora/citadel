@@ -10,51 +10,29 @@
   <meta property="og:url" content="https://citadel.kartikarora.me/">
   <meta property="og:description" content="One canonical home for all AI skills with zero-overhead symlinks and zero-knowledge private cloud sync.">
   
-  <!-- Mandatory Brand CDN Assets -->
-  <link href="https://distribute.kartikarora.me/css/kartikarora.css" rel="stylesheet">
+  <!-- Mandatory Brand CDN Assets v2.0.0 -->
+  <link href="https://distribute.kartikarora.me/css/kartikarora.2.0.0.css" rel="stylesheet">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Albert+Sans:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet">
-  <script src="https://distribute.kartikarora.me/js/kartikarora.js" defer></script>
+  <script src="https://distribute.kartikarora.me/js/kartikarora.2.0.0.js" defer></script>
 
   <!-- Favicons and App Icons -->
-  <link rel="icon" href="/favicon.ico" sizes="48x48">
-  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
-  <link rel="apple-touch-icon" href="/apple-touch-icon.png">
-  <link rel="manifest" href="/site.webmanifest">
+  <link rel="icon" href="./favicon.ico" sizes="48x48">
+  <link rel="icon" href="./favicon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="./apple-touch-icon.png">
+  <link rel="manifest" href="./site.webmanifest">
 
   <style>
+    /* Citadel Custom Theme Refinements on top of Brand v2.0.0 */
     :root {
-      --color-paper: oklch(98.5% 0.005 250);
-      --color-paper-alt: oklch(96.0% 0.008 250);
-      --color-paper-sunken: oklch(93.5% 0.010 250);
-      --color-ink: oklch(18.0% 0.015 255);
-      --color-ink-muted: oklch(46.0% 0.020 255);
-      --color-ink-faint: oklch(66.0% 0.018 255);
-      --color-rule: oklch(88.0% 0.010 250);
-      --color-rule-strong: oklch(76.0% 0.015 250);
-      --color-signal: oklch(52.0% 0.24 255);
-      --color-signal-hover: oklch(46.0% 0.24 255);
-      --color-signal-wash: oklch(52.0% 0.24 255 / 0.10);
-      --color-signal-ink: oklch(99.0% 0 0);
-      --color-focus: oklch(52.0% 0.24 255);
+      /* Ensure high-contrast readable accents in light mode: #57606a provides 6.39:1 on #fff, 5.48:1 on sunken card */
+      --color-ink-faint: #57606a;
     }
 
     @media (prefers-color-scheme: dark) {
       :root {
-        --color-paper: oklch(14.0% 0.012 255);
-        --color-paper-alt: oklch(18.5% 0.016 255);
-        --color-paper-sunken: oklch(11.0% 0.010 255);
-        --color-ink: oklch(94.0% 0.015 255);
-        --color-ink-muted: oklch(72.0% 0.020 255);
-        --color-ink-faint: oklch(48.0% 0.018 255);
-        --color-rule: oklch(24.0% 0.018 255);
-        --color-rule-strong: oklch(34.0% 0.025 255);
-        --color-signal: oklch(68.0% 0.22 255);
-        --color-signal-hover: oklch(74.0% 0.20 255);
-        --color-signal-wash: oklch(68.0% 0.22 255 / 0.14);
-        --color-signal-ink: oklch(10.0% 0.01 255);
-        --color-focus: oklch(68.0% 0.22 255);
+        --color-ink-faint: #8c9ba5;
       }
     }
 
@@ -103,10 +81,72 @@
     }
 
     .brand-logo-img {
-      width: 24px;
-      height: 24px;
+      width: 28px;
+      height: 28px;
       aspect-ratio: 1 / 1;
       display: block;
+      filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.15));
+    }
+
+    .hero-badge-wrap {
+      display: inline-flex;
+      align-items: center;
+      gap: var(--space-xs);
+      background: var(--color-paper-alt);
+      border: 1px solid var(--color-rule);
+      padding: 6px 14px 6px 8px;
+      border-radius: 9999px;
+      margin-bottom: var(--space-md);
+      box-shadow: 0 2px 8px -2px rgba(0, 0, 0, 0.06);
+    }
+
+    .hero-badge-logo {
+      width: 28px;
+      height: 28px;
+      border-radius: 6px;
+      display: block;
+      filter: drop-shadow(0 2px 6px rgba(99, 102, 241, 0.25));
+    }
+
+    .hero-badge-text {
+      font-size: var(--text-xs);
+      font-weight: 600;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      color: var(--color-ink-muted);
+    }
+
+    .hero-badge-dot {
+      color: var(--color-signal);
+    }
+
+    .spec-card-logo-watermark {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 12px;
+      padding-bottom: 10px;
+      border-bottom: 1px dashed var(--color-rule);
+    }
+
+    .spec-card-logo-img {
+      width: 36px;
+      height: 36px;
+      filter: drop-shadow(0 4px 10px rgba(99, 102, 241, 0.3));
+    }
+
+    .spec-card-logo-title {
+      font-weight: 600;
+      color: var(--color-ink);
+      font-size: var(--text-xs);
+      font-family: var(--font-sans);
+      letter-spacing: 0.02em;
+    }
+
+    .spec-card-logo-sub {
+      color: var(--color-ink-faint);
+      font-size: 10px;
+      font-family: var(--font-mono);
     }
 
     .version-pill {
@@ -435,8 +475,8 @@
   <!-- Brand Navigation -->
   <header class="nav">
     <div class="nav-container">
-      <a href="/" class="brand-link">
-        <img src="/logo.svg" alt="Citadel Mark" class="brand-logo-img" width="24" height="24">
+      <a href="./" class="brand-link">
+        <img src="./logo.svg" alt="Citadel Neural Logo" class="brand-logo-img" width="28" height="28">
         <span>Citadel</span>
         <span class="version-pill">v0.1.0</span>
       </a>
@@ -457,6 +497,10 @@
   <!-- Hero Section -->
   <section class="hero-section">
     <div>
+      <div class="hero-badge-wrap">
+        <img src="./logo.svg" alt="Citadel Logo" class="hero-badge-logo" width="28" height="28">
+        <span class="hero-badge-text">Citadel Engine <span class="hero-badge-dot">&bull;</span> Sovereign Hub</span>
+      </div>
       <h1 class="hero-title">Keep your AI skills and MCP servers in one place.</h1>
       <p class="hero-summary">Claude, Antigravity, and Cursor expect configs in conflicting directories. Citadel maintains your skills centrally in <code>~/.citadel</code> and symlinks them into every tool with zero overhead.</p>
       <div class="hero-actions">
@@ -466,6 +510,13 @@
     </div>
 
     <div class="spec-card">
+      <div class="spec-card-logo-watermark">
+        <img src="./logo.svg" alt="Citadel Keystone" class="spec-card-logo-img" width="36" height="36">
+        <div>
+          <div class="spec-card-logo-title">Neural Citadel Architecture</div>
+          <div class="spec-card-logo-sub">APFS Zero-Copy Symlink Fabric</div>
+        </div>
+      </div>
       <div class="spec-header">
         <span>Filesystem mapping</span>
         <span>APFS Symlinks</span>
@@ -648,7 +699,8 @@
             <div>ctdl add mcp &lt;name&gt; &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span style="color: var(--color-ink-faint);"># Register an MCP server</span></div>
             <div>ctdl portal . &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span style="color: var(--color-ink-faint);"># Symlink skills into current repo</span></div>
             <div>ctdl search &lt;query&gt; &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span style="color: var(--color-ink-faint);"># Search npm for community skills</span></div>
-            <div>ctdl install &lt;pkg&gt; &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span style="color: var(--color-ink-faint);"># Download and unpack an npm skill</span></div>
+            <div>ctdl install &lt;pkg&gt; &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span style="color: var(--color-ink-faint);"># Install a skill via NPX in background</span></div>
+            <div>ctdl remove &lt;skill&gt; &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span style="color: var(--color-ink-faint);"># Remove a skill via NPX and clean links</span></div>
             <div>ctdl push / pull &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span style="color: var(--color-ink-faint);"># Sync ~/.citadel with your private Git remote</span></div>
           </div>
         </div>
@@ -674,25 +726,25 @@
       </section>
 
       <section id="npm" class="doc-section">
-        <h2>Using npm</h2>
-        <p>Citadel uses npm to distribute skills. There is no custom backend to sign up for.</p>
-        <p>Any npm package with <code>"keywords": ["citadel-skill"]</code> in its <code>package.json</code> can be found with <code>ctdl search</code> and installed with <code>ctdl install</code>:</p>
+        <h2>Decentralized Skills via NPX</h2>
+        <p>Citadel never acts as a proprietary walled-garden marketplace. Instead, it serves as a sovereign controller that searches public packages on npm and runs standard <code>npx</code> commands in the background to install, update, and remove skills.</p>
+        <p>It natively inter-operates with the open agent skills ecosystem (such as <code>vercel-labs/skills</code>). Any community skill published to npm or GitHub can be searched with <code>ctdl search</code> and installed with <code>ctdl install</code>:</p>
 
         <div class="code-terminal">
           <div class="code-terminal-bar">
-            <span>package.json</span>
-            <span>Skill author</span>
+            <span>Terminal</span>
+            <span>NPX Execution</span>
           </div>
           <div class="code-terminal-body">
-            <pre><code>{
-  "name": "@developer/citadel-skill-kubernetes",
-  "version": "1.0.4",
-  "keywords": ["citadel-skill"],
-  "files": ["SKILL.md", "scripts/"]
-}</code></pre>
+            <div><span class="terminal-prompt">$</span>ctdl search vercel</div>
+            <div class="terminal-out">📦 vercel-labs/agent-skills (v1.0.0)</div>
+            <div><span class="terminal-prompt">$</span>ctdl install vercel-labs/agent-skills</div>
+            <div class="terminal-out">📥 Installing 'vercel-labs/agent-skills' via NPX...</div>
+            <div class="terminal-out">✅ Installed 'vercel-labs-agent-skills' into ~/.citadel/skills</div>
+            <div class="terminal-out">🚀 Automatically linked across Antigravity, Claude, and active workspaces!</div>
           </div>
         </div>
-        <p>When you run <code>ctdl install @developer/citadel-skill-kubernetes</code>, Citadel downloads the archive, puts the files in <code>~/.citadel/skills/kubernetes</code>, and links them to Antigravity and Claude.</p>
+        <p>When you run install or remove, Citadel runs <code>npx skills</code> behind the scenes and guarantees that your master skills repository at <code>~/.citadel/skills</code> is cleanly linked to all your AI assistants with zero overhead.</p>
       </section>
 
       <section id="security" class="doc-section">

@@ -606,6 +606,7 @@ final class CitadelStore: ObservableObject {
     @Published var marketPackages: [NPMSkillPackage] = []
     @Published var isSearchingMarket: Bool = false
     @Published var installingPackage: String? = nil
+    @Published var removingPackage: String? = nil
     
     // Selection
     @Published var searchText: String = ""
@@ -906,6 +907,26 @@ final class CitadelStore: ObservableObject {
             _ = try? await NPMRegistry.shared.install(packageSpec: pkg.name)
             await MainActor.run {
                 self.installingPackage = nil
+                self.refresh()
+            }
+        }
+    }
+    
+    func removeMarketplacePackage(_ pkg: NPMSkillPackage) {
+        let cleanName = pkg.name.components(separatedBy: "@").filter { !$0.isEmpty }.first ?? pkg.name
+        let skillFolder = cleanName.replacingOccurrences(of: "/", with: "-").replacingOccurrences(of: "@", with: "")
+        
+        // Find installed skill name
+        let skillName = skills.first(where: {
+            $0.name.lowercased() == skillFolder.lowercased() ||
+            $0.name.lowercased() == pkg.name.lowercased()
+        })?.name ?? skillFolder
+        
+        removingPackage = pkg.name
+        Task {
+            try? await NPMRegistry.shared.remove(skillName: skillName)
+            await MainActor.run {
+                self.removingPackage = nil
                 self.refresh()
             }
         }
@@ -4118,42 +4139,104 @@ struct DiscoveryChamber: View {
 struct MarketplaceChamber: View {
     @ObservedObject var store: CitadelStore
     
+    private func isPackageInstalled(_ pkg: NPMSkillPackage) -> Bool {
+        let cleanName = pkg.name.components(separatedBy: "@").filter { !$0.isEmpty }.first ?? pkg.name
+        let skillFolder = cleanName.replacingOccurrences(of: "/", with: "-").replacingOccurrences(of: "@", with: "")
+        return store.skills.contains {
+            $0.name.lowercased() == skillFolder.lowercased() ||
+            $0.name.lowercased() == pkg.name.lowercased()
+        }
+    }
+    
     var body: some View {
         VStack(spacing: 0) {
-            HStack(spacing: BrandSpacing.xs) {
-                Image(systemName: "shippingbox.fill")
-                    .foregroundColor(store.palette.textMuted)
-                TextField("Search npm for 'citadel-skill' packages...", text: $store.marketQuery)
-                    .textFieldStyle(.plain)
-                    .font(.brandMono)
-                    .foregroundColor(store.palette.textPrimary)
-                    .onSubmit { store.searchMarketplace() }
+            // Header Search & NPX Manager Bar
+            VStack(alignment: .leading, spacing: BrandSpacing.xs) {
+                HStack(spacing: BrandSpacing.xs) {
+                    Image(systemName: "shippingbox.fill")
+                        .foregroundColor(store.palette.accent)
+                    Text("NPM SKILLS MANAGER")
+                        .font(.brandHeadline)
+                        .foregroundColor(store.palette.textPrimary)
+                    Spacer()
+                    HStack(spacing: 4) {
+                        Circle()
+                            .fill(Color.brand.success)
+                            .frame(width: 6, height: 6)
+                        Text("NPX DRIVEN")
+                            .font(.brandMonoBadge)
+                            .foregroundColor(store.palette.textMuted)
+                    }
+                    .padding(.horizontal, BrandSpacing.xs)
+                    .padding(.vertical, BrandSpacing.xxs - 2)
+                    .background(store.palette.card)
+                    .clipShape(BrandShapes.pill)
+                }
                 
-                Button(action: { store.searchMarketplace() }) {
-                    Text("SEARCH NPM")
-                        .font(.brandMonoBadge)
+                Text("Citadel is not a proprietary marketplace. It queries public packages via npm and runs npx in the background to install or remove skills across your local AI tools.")
+                    .font(.brandCaption)
+                    .foregroundColor(store.palette.textSecondary)
+                
+                HStack(spacing: BrandSpacing.xs) {
+                    Image(systemName: "magnifyingglass")
+                        .foregroundColor(store.palette.textMuted)
+                    TextField("Search npm packages (e.g. skills, agent-skills, react)...", text: $store.marketQuery)
+                        .textFieldStyle(.plain)
+                        .font(.brandMono)
+                        .foregroundColor(store.palette.textPrimary)
+                        .onSubmit { store.searchMarketplace() }
+                    
+                    if !store.marketQuery.isEmpty {
+                        Button(action: {
+                            store.marketQuery = ""
+                            store.marketPackages = []
+                        }) {
+                            Image(systemName: "xmark.circle.fill")
+                                .foregroundColor(store.palette.textMuted)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                    
+                    Button(action: { store.searchMarketplace() }) {
+                        HStack(spacing: BrandSpacing.xxs) {
+                            if store.isSearchingMarket {
+                                ProgressView()
+                                    .scaleEffect(0.6)
+                            }
+                            Text("SEARCH NPM")
+                                .font(.brandMonoBadge)
+                        }
                         .foregroundColor(store.palette.textPrimary)
                         .padding(.horizontal, BrandSpacing.sm)
                         .padding(.vertical, BrandSpacing.xs)
                         .background(store.palette.card)
                         .clipShape(BrandShapes.pill)
                         .overlay(BrandShapes.pill.stroke(store.palette.borderStrong, lineWidth: 1))
+                    }
+                    .buttonStyle(.plain)
                 }
-                .buttonStyle(.plain)
+                .padding(BrandSpacing.sm)
+                .background(store.palette.surfaceSunken)
+                .clipShape(BrandShapes.small)
             }
             .padding(BrandSpacing.md)
-            .background(store.palette.card.opacity(0.35))
+            .background(store.palette.card.opacity(0.45))
             
             Divider().background(store.palette.border)
             
             if store.marketPackages.isEmpty && !store.isSearchingMarket {
-                VStack(spacing: BrandSpacing.xs) {
-                    Text("NPM DECENTRALIZED SKILL REGISTRY")
-                        .font(.brandHeadline)
-                        .foregroundColor(store.palette.textSecondary)
-                    Text("Type a keyword above to discover community skills published on npm.")
-                        .font(.brandCaption)
+                VStack(spacing: BrandSpacing.sm) {
+                    Image(systemName: "cube.box")
+                        .font(.system(size: 36))
                         .foregroundColor(store.palette.textMuted)
+                    Text("DECENTRALIZED SKILL REGISTRY")
+                        .font(.brandHeadline)
+                        .foregroundColor(store.palette.textPrimary)
+                    Text("Search npm to discover and install community agent skills using npx in the background.\nSupports packages published with open agent skill formats (e.g. vercel-labs/skills).")
+                        .font(.brandCaption)
+                        .foregroundColor(store.palette.textSecondary)
+                        .multilineTextAlignment(.center)
+                        .frame(maxWidth: 500)
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .background(store.palette.background)
@@ -4161,7 +4244,11 @@ struct MarketplaceChamber: View {
                 ScrollView {
                     LazyVStack(spacing: 0) {
                         ForEach(store.marketPackages) { pkg in
-                            HStack {
+                            let installed = isPackageInstalled(pkg)
+                            let isInstalling = store.installingPackage == pkg.name
+                            let isRemoving = store.removingPackage == pkg.name
+                            
+                            HStack(alignment: .top) {
                                 VStack(alignment: .leading, spacing: BrandSpacing.xxs) {
                                     HStack(spacing: BrandSpacing.xs) {
                                         Text(pkg.name)
@@ -4174,25 +4261,88 @@ struct MarketplaceChamber: View {
                                             .padding(.vertical, BrandSpacing.xxs - 2)
                                             .background(store.palette.accentMuted)
                                             .clipShape(BrandShapes.pill)
+                                        
+                                        if installed {
+                                            HStack(spacing: 3) {
+                                                Image(systemName: "checkmark.circle.fill")
+                                                Text("INSTALLED")
+                                            }
+                                            .font(.brandMonoBadge)
+                                            .foregroundColor(Color.brand.success)
+                                            .padding(.horizontal, BrandSpacing.xs)
+                                            .padding(.vertical, BrandSpacing.xxs - 2)
+                                            .background(Color.brand.success.opacity(0.12))
+                                            .clipShape(BrandShapes.pill)
+                                        }
+                                        
+                                        if let pub = pkg.publisher {
+                                            Text("by @" + pub)
+                                                .font(.brandCaption)
+                                                .foregroundColor(store.palette.textMuted)
+                                        }
                                     }
+                                    
                                     if let desc = pkg.description {
                                         Text(desc)
                                             .font(.brandCaption)
                                             .foregroundColor(store.palette.textSecondary)
+                                            .lineLimit(2)
+                                    }
+                                    
+                                    HStack(spacing: BrandSpacing.xs) {
+                                        Text("npx skills add \(pkg.name)")
+                                            .font(.brandMonoBadge)
+                                            .foregroundColor(store.palette.textMuted)
+                                            .padding(.horizontal, 6)
+                                            .padding(.vertical, 2)
+                                            .background(store.palette.surfaceSunken)
+                                            .clipShape(BrandShapes.small)
+                                    }
+                                    .padding(.top, 2)
+                                }
+                                
+                                Spacer()
+                                
+                                HStack(spacing: BrandSpacing.xs) {
+                                    if installed {
+                                        Button(action: { store.removeMarketplacePackage(pkg) }) {
+                                            HStack(spacing: 4) {
+                                                if isRemoving {
+                                                    ProgressView()
+                                                        .scaleEffect(0.5)
+                                                }
+                                                Text(isRemoving ? "REMOVING..." : "REMOVE")
+                                                    .font(.brandMonoBadge)
+                                            }
+                                            .foregroundColor(Color.brand.danger)
+                                            .padding(.horizontal, BrandSpacing.sm)
+                                            .padding(.vertical, BrandSpacing.xs - 2)
+                                            .background(Color.brand.danger.opacity(0.12))
+                                            .clipShape(BrandShapes.pill)
+                                            .overlay(BrandShapes.pill.stroke(Color.brand.danger.opacity(0.3), lineWidth: 1))
+                                        }
+                                        .buttonStyle(.plain)
+                                        .disabled(isInstalling || isRemoving)
+                                    } else {
+                                        Button(action: { store.installMarketplacePackage(pkg) }) {
+                                            HStack(spacing: 4) {
+                                                if isInstalling {
+                                                    ProgressView()
+                                                        .scaleEffect(0.5)
+                                                }
+                                                Text(isInstalling ? "INSTALLING..." : "INSTALL VIA NPX")
+                                                    .font(.brandMonoBadge)
+                                            }
+                                            .foregroundColor(store.palette.background)
+                                            .padding(.horizontal, BrandSpacing.sm)
+                                            .padding(.vertical, BrandSpacing.xs - 2)
+                                            .background(store.palette.accent)
+                                            .clipShape(BrandShapes.pill)
+                                        }
+                                        .buttonStyle(.plain)
+                                        .disabled(isInstalling || isRemoving)
                                     }
                                 }
-                                Spacer()
-                                Button(action: { store.installMarketplacePackage(pkg) }) {
-                                    Text(store.installingPackage == pkg.name ? "INSTALLING..." : "INSTALL")
-                                        .font(.brandMonoBadge)
-                                        .foregroundColor(store.palette.background)
-                                        .padding(.horizontal, BrandSpacing.sm)
-                                        .padding(.vertical, BrandSpacing.xs - 2)
-                                        .background(store.palette.accent)
-                                        .clipShape(BrandShapes.pill)
-                                }
-                                .buttonStyle(.plain)
-                                .disabled(store.installingPackage != nil)
                             }
                             .padding(BrandSpacing.md)
                             .background(store.palette.background)

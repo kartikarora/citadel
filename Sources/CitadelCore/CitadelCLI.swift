@@ -19,6 +19,7 @@ public struct CitadelCLI: AsyncParsableCommand {
             AddCommand.self,
             SearchCommand.self,
             InstallCommand.self,
+            RemoveCommand.self,
             PushCommand.self,
             PullCommand.self,
             StatusCommand.self,
@@ -492,20 +493,21 @@ struct AddCommand: ParsableCommand {
 }
 
 struct SearchCommand: AsyncParsableCommand {
-    static let configuration = CommandConfiguration(commandName: "search", abstract: "Search npm marketplace for community skills tagged with 'citadel-skill'.")
+    static let configuration = CommandConfiguration(commandName: "search", abstract: "Search npm for community agent skill packages (installable via NPX).")
     
-    @Argument(help: "Keyword search query (optional)")
+    @Argument(help: "Keyword search query (defaults to 'skills')")
     var query: String?
     
     func run() async throws {
-        print("🔍 Searching the npm Citadel Skill Marketplace...")
+        let q = query ?? "skills"
+        print("🔍 Searching npm for skills matching '\(q)'...")
         let packages = try await NPMRegistry.shared.searchSkills(query: query)
         if packages.isEmpty {
-            print("No packages found. Publish one to npm with keyword 'citadel-skill'!")
+            print("No packages found on npm for query: '\(q)'")
             return
         }
         
-        print("\n✨ FOUND \(packages.count) SKILLS ON NPM:")
+        print("\n✨ FOUND \(packages.count) PACKAGES ON NPM:")
         print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
         for pkg in packages {
             let author = pkg.publisher != nil ? " by @\(pkg.publisher!)" : ""
@@ -520,16 +522,29 @@ struct SearchCommand: AsyncParsableCommand {
 }
 
 struct InstallCommand: AsyncParsableCommand {
-    static let configuration = CommandConfiguration(commandName: "install", abstract: "Install a skill package directly from npm and beam it into your AI assistants.")
+    static let configuration = CommandConfiguration(commandName: "install", abstract: "Install a skill package via background NPX and link it into all AI tools.")
     
-    @Argument(help: "Package name on npm (e.g. '@user/skill' or 'citadel-skill-design')")
+    @Argument(help: "Package name or specifier on npm (e.g. 'vercel-labs/agent-skills' or '@user/skill')")
     var packageName: String
     
     func run() async throws {
-        print("📥 Downloading '\(packageName)' from npm...")
+        print("📥 Installing '\(packageName)' via NPX...")
         let installedFolder = try await NPMRegistry.shared.install(packageSpec: packageName)
         print("✅ Installed '\(installedFolder)' into ~/.citadel/skills/\(installedFolder)")
-        print("🚀 Automatically synced and linked across Antigravity, Claude, and active portals!")
+        print("🚀 Automatically propagated and linked across Antigravity, Claude, and active workspaces!")
+    }
+}
+
+struct RemoveCommand: AsyncParsableCommand {
+    static let configuration = CommandConfiguration(commandName: "remove", abstract: "Remove an installed skill package via background NPX and clean up all symlinks.")
+    
+    @Argument(help: "Name of the skill to remove (e.g. 'web-design-guidelines')")
+    var skillName: String
+    
+    func run() async throws {
+        print("🗑️ Removing '\(skillName)' via NPX...")
+        try await NPMRegistry.shared.remove(skillName: skillName)
+        print("✅ Removed '\(skillName)' from ~/.citadel/skills and cleaned up AI tool links.")
     }
 }
 
