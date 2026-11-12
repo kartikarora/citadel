@@ -23,13 +23,7 @@ public final class RollbackEngine: @unchecked Sendable {
     
     /// Target directories where AI tools store their skills
     public var targetSkillDirectories: [URL] {
-        return [
-            paths.home.appendingPathComponent(".gemini/config/skills"),
-            paths.home.appendingPathComponent(".claude/skills"),
-            paths.home.appendingPathComponent(".android-studio/skills"),
-            paths.home.appendingPathComponent(".copilot/skills"),
-            paths.home.appendingPathComponent(".junie/skills")
-        ]
+        return AgentRegistry.shared.allGlobalSkillsDirs(home: paths.home, xdgConfig: paths.xdgConfigRoot)
     }
     
     /// Replaces all symlinks pointing into Citadel Hub with actual standalone directory copies
@@ -51,6 +45,12 @@ public final class RollbackEngine: @unchecked Sendable {
             for portal in portals {
                 allTargetDirs.append(portal.projectPath.appendingPathComponent(".gemini/skills"))
                 allTargetDirs.append(portal.projectPath.appendingPathComponent(".claude/skills"))
+                for relativeSkillsDir in AgentRegistry.shared.allProjectSkillDirs where relativeSkillsDir != ".gemini/skills" && relativeSkillsDir != ".claude/skills" {
+                    let dir = portal.projectPath.appendingPathComponent(relativeSkillsDir)
+                    if fileManager.fileExists(atPath: dir.path) {
+                        allTargetDirs.append(dir)
+                    }
+                }
             }
         }
         
@@ -116,11 +116,7 @@ public final class RollbackEngine: @unchecked Sendable {
         echo "=================================================="
 
         TARGETS=(
-            "$HOME/.gemini/config/skills"
-            "$HOME/.claude/skills"
-            "$HOME/.android-studio/skills"
-            "$HOME/.copilot/skills"
-            "$HOME/.junie/skills"
+        \(AgentRegistry.shared.allGlobalSkillsDirs(home: paths.home, xdgConfig: paths.xdgConfigRoot).map { "    \"\($0.path)\"" }.joined(separator: "\n"))
         )
 
         MATERIALIZED_COUNT=0

@@ -446,7 +446,7 @@ public struct SkillDetailView: View {
 }
 
 /// Recursive Tree Row View for file nodes in a skill package
-private struct PackageNodeRow: View {
+fileprivate struct PackageNodeRow: View {
     let node: SkillPackageNode
     let selectedPath: String
     let palette: ThemePalette
@@ -457,6 +457,20 @@ private struct PackageNodeRow: View {
     private var isExpanded: Bool {
         get { _isExpanded.wrappedValue }
         nonmutating set { _isExpanded.wrappedValue = newValue }
+    }
+
+    init(
+        node: SkillPackageNode,
+        selectedPath: String,
+        palette: ThemePalette,
+        level: Int,
+        onSelectFile: @escaping (SkillPackageNode) -> Void
+    ) {
+        self.node = node
+        self.selectedPath = selectedPath
+        self.palette = palette
+        self.level = level
+        self.onSelectFile = onSelectFile
     }
     
     var body: some View {

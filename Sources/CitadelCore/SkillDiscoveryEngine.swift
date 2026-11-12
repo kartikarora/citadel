@@ -27,20 +27,8 @@ public final class SkillDiscoveryEngine: @unchecked Sendable {
     /// Known directories where AI tools and projects hide skills on macOS / POSIX
     public var defaultScanRoots: [URL] {
         let home = fileManager.homeDirectoryForCurrentUser
-        return [
-            home.appendingPathComponent(".agents"),
-            home.appendingPathComponent(".gemini"),
-            home.appendingPathComponent(".claude"),
-            home.appendingPathComponent(".cursor"),
-            home.appendingPathComponent(".windsurf"),
-            home.appendingPathComponent(".cline"),
-            home.appendingPathComponent(".roo"),
-            home.appendingPathComponent(".codex"),
-            home.appendingPathComponent(".continue"),
-            home.appendingPathComponent(".codeium"),
-            home.appendingPathComponent(".android-studio"),
-            home.appendingPathComponent(".copilot"),
-            home.appendingPathComponent(".junie"),
+        var candidates = AgentRegistry.shared.allGlobalRootDirs(home: home)
+        candidates.append(contentsOf: [
             home.appendingPathComponent(".config"),
             home.appendingPathComponent("Projects"),
             home.appendingPathComponent("Developer"),
@@ -49,7 +37,11 @@ public final class SkillDiscoveryEngine: @unchecked Sendable {
             home.appendingPathComponent("Documents"),
             home.appendingPathComponent("src"),
             home.appendingPathComponent("code")
-        ].filter { fileManager.fileExists(atPath: $0.path) }
+        ])
+        var seen = Set<String>()
+        return candidates.filter { url in
+            seen.insert(url.path).inserted && fileManager.fileExists(atPath: url.path)
+        }
     }
     
     /// Recursively scans search roots for any folder containing a `SKILL.md`
@@ -147,22 +139,7 @@ public final class SkillDiscoveryEngine: @unchecked Sendable {
     }
     
     private func determineKind(for url: URL) -> String {
-        let p = url.path
-        if p.contains("/.agents/") { return "agents" }
-        if p.contains("/plugins/") { return "plugin" }
-        if p.contains("/builtin/") { return "builtin" }
-        if p.contains("/.android-studio/") { return "android-studio" }
-        if p.contains("/.copilot/") { return "copilot" }
-        if p.contains("/.junie/") { return "junie" }
-        if p.contains("/.claude/") { return "claude" }
-        if p.contains("/.cursor/") { return "cursor" }
-        if p.contains("/.windsurf/") { return "windsurf" }
-        if p.contains("/.cline/") { return "cline" }
-        if p.contains("/.roo/") { return "roo" }
-        if p.contains("/.codex/") { return "codex" }
-        if p.contains("/.continue/") { return "continue" }
-        if p.contains("/Projects/") || p.contains("/Developer/") || p.contains("/Development/") || p.contains("/Workspace/") { return "workspace" }
-        return "custom"
+        AgentRegistry.shared.sourceKind(for: url)
     }
     
     private func extractDescription(from markdown: String) -> String? {

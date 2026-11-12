@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Citadel — The Council of Skills & MCPs for AI Assistants</title>
   <link rel="canonical" href="https://citadel.kartikarora.me/">
-  <meta name="description" content="Centralized source of truth for your AI skills and MCP servers across Antigravity, Claude Code, Cursor, Android Studio, Copilot, and Junie.">
+  <meta name="description" content="Centralized source of truth for your AI skills and MCP servers across Antigravity, Claude Code, Matilda, Cursor, Android Studio, Copilot, Junie, and 75+ agents.">
   <meta property="og:title" content="Citadel — Canonical AI Skill & MCP Hub">
   <meta property="og:url" content="https://citadel.kartikarora.me/">
   <meta property="og:description" content="One canonical home for all AI skills with zero-overhead symlinks and zero-knowledge private cloud sync.">
@@ -575,7 +575,7 @@
       <section id="why" class="doc-section">
         <h2>Why this exists</h2>
         <p>If you use more than one coding assistant, you run into the same problem:</p>
-        <p>Antigravity stores skills in <code>~/.gemini/config/skills</code>. Claude Code expects them in <code>~/.claude/skills</code>. Cursor looks in <code>~/.cursor/skills</code>, Android Studio in <code>~/.android-studio/skills</code>, GitHub Copilot in <code>~/.copilot/skills</code>, and Junie in <code>~/.junie/skills</code>. Claude Desktop stores MCP server commands inside <code>claude_desktop_config.json</code> under Application Support. Projects often have their own <code>.gemini/</code> or <code>.claude/</code> folders checked into git.</p>
+        <p>Antigravity stores skills in <code>~/.gemini/config/skills</code>. Claude Code expects them in <code>~/.claude/skills</code>. Matilda uses <code>~/.matilda/skills</code>, Cursor looks in <code>~/.cursor/skills</code>, Android Studio in <code>~/.android-studio/skills</code>, GitHub Copilot in <code>~/.copilot/skills</code>, Junie in <code>~/.junie/skills</code>, and 75+ more agents (via Citadel's <code>AgentRegistry</code>, aligned with <code>vercel-labs/skills</code>) each use their own global or XDG paths. Claude Desktop stores MCP server commands inside <code>claude_desktop_config.json</code> under Application Support. Projects often have their own <code>.gemini/</code>, <code>.claude/</code>, <code>.matilda/</code>, or <code>.agents/</code> folders checked into git.</p>
         
         <blockquote class="brand-statement">
           "If you fix a bug in a skill inside one repo, that fix stays trapped there. If you add an MCP server to Claude, Antigravity does not know about it. Citadel solves this with native symlinks."
@@ -648,10 +648,11 @@
             <div style="color: var(--color-ink-faint); margin: 4px 0;">// Pointed to by zero-overhead symlinks:</div>
             <div>&nbsp;&nbsp;├── ~/.gemini/skills/my-skill &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span style="color: var(--color-ink-faint);">(Antigravity)</span></div>
             <div>&nbsp;&nbsp;├── ~/.claude/skills/my-skill &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span style="color: var(--color-ink-faint);">(Claude Code)</span></div>
+            <div>&nbsp;&nbsp;├── ~/.matilda/skills/my-skill &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span style="color: var(--color-ink-faint);">(Matilda)</span></div>
             <div>&nbsp;&nbsp;├── ~/.cursor/skills/my-skill &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span style="color: var(--color-ink-faint);">(Cursor)</span></div>
             <div>&nbsp;&nbsp;├── ~/.android-studio/skills/my-skill <span style="color: var(--color-ink-faint);">(Android Studio)</span></div>
             <div>&nbsp;&nbsp;├── ~/.copilot/skills/my-skill &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span style="color: var(--color-ink-faint);">(GitHub Copilot)</span></div>
-            <div>&nbsp;&nbsp;└── ~/.junie/skills/my-skill &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span style="color: var(--color-ink-faint);">(Junie)</span></div>
+            <div>&nbsp;&nbsp;└── ~/.junie/skills/my-skill &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span style="color: var(--color-ink-faint);">(Junie &amp; 75+ registry agents)</span></div>
           </div>
         </div>
         <p>Because these are symlinks, an edit made inside any editor or terminal updates the master file in The Armory instantly with <strong>zero sync latency</strong> and <strong>zero duplicate storage</strong>.</p>
@@ -756,6 +757,11 @@
               <td>Symlink to <code>~/.citadel/skills/</code></td>
             </tr>
             <tr>
+              <td>Matilda</td>
+              <td><code>~/.matilda/skills/</code></td>
+              <td>Symlink to <code>~/.citadel/skills/</code></td>
+            </tr>
+            <tr>
               <td>Cursor</td>
               <td><code>~/.cursor/skills/</code></td>
               <td>Symlink to <code>~/.citadel/skills/</code></td>
@@ -782,7 +788,7 @@
             </tr>
             <tr>
               <td>Project Workspaces</td>
-              <td><code>&lt;repo&gt;/.citadel/skills/</code> or <code>.gemini/</code></td>
+              <td><code>&lt;repo&gt;/.citadel/skills/</code>, <code>.gemini/</code>, <code>.claude/</code>, <code>.matilda/</code>, <code>.agents/</code></td>
               <td>Symlinks selected project skills</td>
             </tr>
           </tbody>

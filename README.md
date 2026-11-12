@@ -47,7 +47,7 @@ Citadel is built for zero-trust local development:
 Every AI coding assistant expects configs in its own siloed directory:
 - **Antigravity** stores global skills in `~/.gemini/config/skills`, plugins in `~/.gemini/config/plugins`, and project configs in `.gemini/`.
 - **Claude Code / Desktop** stores skills in `~/.claude/skills`, desktop MCPs in `~/Library/Application Support/Claude/claude_desktop_config.json`, and project configs in `.claude/`.
-- **Cursor / Codex** use workspace prompt files.
+- **Matilda, Cursor, Android Studio, Copilot, Junie & 75+ other agents** (tracked via Citadel's centralized `AgentRegistry`, aligned with `vercel-labs/skills`) store skills in tool-specific paths such as `~/.matilda/skills`, `~/.cursor/skills`, `~/.android-studio/skills`, `~/.copilot/skills`, `~/.junie/skills`, and project folders like `.matilda/` or `.agents/`.
 - **Projects** frequently have local prompt folders checked into Git, meaning bug fixes or updates in one project never reach your other projects.
 
 Citadel stores your canonical skills and MCP configs in `~/.citadel` and manages live symlinks across all dimensions. When you edit a skill, every assistant sees the edit immediately.

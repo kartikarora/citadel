@@ -8,6 +8,15 @@ public struct UniversalPaths: Sendable {
         FileManager.default.homeDirectoryForCurrentUser
     }
     
+    /// Standard XDG config root (~/.config or $XDG_CONFIG_HOME), matching vercel-labs/skills
+    public var xdgConfigRoot: URL {
+        let env = ProcessInfo.processInfo.environment
+        if let xdg = env["XDG_CONFIG_HOME"], !xdg.isEmpty {
+            return URL(fileURLWithPath: xdg)
+        }
+        return home.appendingPathComponent(".config")
+    }
+    
     /// Standard application data & config root
     public var appConfigRoot: URL {
         let env = ProcessInfo.processInfo.environment
@@ -44,34 +53,11 @@ public struct UniversalPaths: Sendable {
     
     /// Known client root locations across any POSIX / macOS installation
     public var knownClientRoots: [URL] {
-        let candidates: [URL] = [
-            // Agents standard location
-            home.appendingPathComponent(".agents"),
-            // Gemini / Antigravity
-            home.appendingPathComponent(".gemini"),
-            // Claude
-            home.appendingPathComponent(".claude"),
+        var candidates: [URL] = AgentRegistry.shared.allGlobalRootDirs()
+        candidates.append(contentsOf: [
             appConfigRoot.appendingPathComponent("Claude"),
-            // Cursor
-            home.appendingPathComponent(".cursor"),
             appConfigRoot.appendingPathComponent("Cursor"),
-            // Windsurf & Codeium
-            home.appendingPathComponent(".windsurf"),
             appConfigRoot.appendingPathComponent("Windsurf"),
-            home.appendingPathComponent(".codeium"),
-            // Codex & OpenAI
-            home.appendingPathComponent(".codex"),
-            // Cline & Roo Code
-            home.appendingPathComponent(".cline"),
-            home.appendingPathComponent(".roo"),
-            // Continue.dev
-            home.appendingPathComponent(".continue"),
-            // Android Studio (~/.android-studio)
-            home.appendingPathComponent(".android-studio"),
-            // GitHub Copilot (~/.copilot)
-            home.appendingPathComponent(".copilot"),
-            // Junie (~/.junie)
-            home.appendingPathComponent(".junie"),
             // Standard user config
             home.appendingPathComponent(".config"),
             // Common project and development roots
@@ -80,8 +66,11 @@ public struct UniversalPaths: Sendable {
             home.appendingPathComponent("Development"),
             home.appendingPathComponent("Workspace"),
             home.appendingPathComponent("Documents")
-        ]
-        return candidates.filter { FileManager.default.fileExists(atPath: $0.path) }
+        ])
+        var seen = Set<String>()
+        return candidates.filter { url in
+            seen.insert(url.path).inserted && FileManager.default.fileExists(atPath: url.path)
+        }
     }
     
     /// Default search roots for workspaces: checks current directory and common dev folders if they exist

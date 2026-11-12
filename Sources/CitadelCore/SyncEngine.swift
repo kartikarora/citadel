@@ -23,83 +23,23 @@ public final class SyncEngine: @unchecked Sendable {
         let mcps = hub.listArmoryMCPs()
         let paths = UniversalPaths.shared
         
-        // 1. Antigravity Global Skills (~/.gemini/config/skills)
-        let agySkillsDir = paths.home.appendingPathComponent(".gemini/config/skills")
-        if fileManager.fileExists(atPath: paths.home.appendingPathComponent(".gemini").path) {
+        // Global skills sync across all installed agents from AgentRegistry
+        let syncTargets = AgentRegistry.shared.detectedGlobalSyncTargets(
+            home: paths.home,
+            xdgConfig: paths.xdgConfigRoot,
+            fileManager: fileManager
+        )
+        for target in syncTargets {
             do {
-                try fileManager.createDirectory(at: agySkillsDir, withIntermediateDirectories: true)
+                try fileManager.createDirectory(at: target.skillsDir, withIntermediateDirectories: true)
                 for skill in skills {
-                    let target = agySkillsDir.appendingPathComponent(skill.name)
-                    if link(source: skill.path, destination: target) {
-                        createdLinks.append("Antigravity: \(skill.name)")
+                    let destination = target.skillsDir.appendingPathComponent(skill.name)
+                    if link(source: skill.path, destination: destination) {
+                        createdLinks.append("\(target.agent.displayName): \(skill.name)")
                     }
                 }
             } catch {
-                warnings.append("Could not link to Antigravity global skills: \(error.localizedDescription)")
-            }
-        }
-        
-        // 2. Claude Code CLI Skills (~/.claude/skills)
-        let claudeSkillsDir = paths.home.appendingPathComponent(".claude/skills")
-        if fileManager.fileExists(atPath: paths.home.appendingPathComponent(".claude").path) {
-            do {
-                try fileManager.createDirectory(at: claudeSkillsDir, withIntermediateDirectories: true)
-                for skill in skills {
-                    let target = claudeSkillsDir.appendingPathComponent(skill.name)
-                    if link(source: skill.path, destination: target) {
-                        createdLinks.append("Claude Code: \(skill.name)")
-                    }
-                }
-            } catch {
-                warnings.append("Could not link to Claude Code skills: \(error.localizedDescription)")
-            }
-        }
-        
-        // 3. Android Studio Skills (~/.android-studio/skills)
-        let androidStudioSkillsDir = paths.home.appendingPathComponent(".android-studio/skills")
-        if fileManager.fileExists(atPath: paths.home.appendingPathComponent(".android-studio").path) {
-            do {
-                try fileManager.createDirectory(at: androidStudioSkillsDir, withIntermediateDirectories: true)
-                for skill in skills {
-                    let target = androidStudioSkillsDir.appendingPathComponent(skill.name)
-                    if link(source: skill.path, destination: target) {
-                        createdLinks.append("Android Studio: \(skill.name)")
-                    }
-                }
-            } catch {
-                warnings.append("Could not link to Android Studio skills: \(error.localizedDescription)")
-            }
-        }
-        
-        // 4. GitHub Copilot Skills (~/.copilot/skills)
-        let copilotSkillsDir = paths.home.appendingPathComponent(".copilot/skills")
-        if fileManager.fileExists(atPath: paths.home.appendingPathComponent(".copilot").path) {
-            do {
-                try fileManager.createDirectory(at: copilotSkillsDir, withIntermediateDirectories: true)
-                for skill in skills {
-                    let target = copilotSkillsDir.appendingPathComponent(skill.name)
-                    if link(source: skill.path, destination: target) {
-                        createdLinks.append("GitHub Copilot: \(skill.name)")
-                    }
-                }
-            } catch {
-                warnings.append("Could not link to GitHub Copilot skills: \(error.localizedDescription)")
-            }
-        }
-        
-        // 5. Junie Skills (~/.junie/skills)
-        let junieSkillsDir = paths.home.appendingPathComponent(".junie/skills")
-        if fileManager.fileExists(atPath: paths.home.appendingPathComponent(".junie").path) {
-            do {
-                try fileManager.createDirectory(at: junieSkillsDir, withIntermediateDirectories: true)
-                for skill in skills {
-                    let target = junieSkillsDir.appendingPathComponent(skill.name)
-                    if link(source: skill.path, destination: target) {
-                        createdLinks.append("Junie: \(skill.name)")
-                    }
-                }
-            } catch {
-                warnings.append("Could not link to Junie skills: \(error.localizedDescription)")
+                warnings.append("Could not link to \(target.agent.displayName) skills: \(error.localizedDescription)")
             }
         }
         
@@ -154,47 +94,30 @@ public final class SyncEngine: @unchecked Sendable {
         let selectedSkills = portal.enabledSkills.compactMap { allSkills[$0] }
         let selectedMCPs = portal.enabledMCPs.compactMap { allMCPs[$0] }
         
+        var syncedDirs = Set<String>()
+
         // For Antigravity (.gemini/skills in repo)
         if portal.targetTools.contains(.antigravityGlobal) {
             let repoAgyDir = portal.projectPath.appendingPathComponent(".gemini/skills")
-            if (try? fileManager.createDirectory(at: repoAgyDir, withIntermediateDirectories: true)) != nil {
-                let enabledNames = Set(selectedSkills.map { $0.name })
-                // Prune any existing skill symlinks that are no longer enabled
-                if let existingItems = try? fileManager.contentsOfDirectory(at: repoAgyDir, includingPropertiesForKeys: nil) {
-                    for item in existingItems {
-                        if !enabledNames.contains(item.lastPathComponent) {
-                            try? fileManager.removeItem(at: item)
-                        }
-                    }
-                }
-                for skill in selectedSkills {
-                    let dest = repoAgyDir.appendingPathComponent(skill.name)
-                    if link(source: skill.path, destination: dest) {
-                        createdLinks.append("\(portal.projectPath.lastPathComponent)/.gemini: \(skill.name)")
-                    }
-                }
-            }
+            syncSkillLinks(into: repoAgyDir, label: "\(portal.projectPath.lastPathComponent)/.gemini", selectedSkills: selectedSkills, createdLinks: &createdLinks)
+            syncedDirs.insert(".gemini/skills")
         }
         
         // For Claude (.claude/skills in repo)
         if portal.targetTools.contains(.claudeCode) {
             let repoClaudeDir = portal.projectPath.appendingPathComponent(".claude/skills")
-            if (try? fileManager.createDirectory(at: repoClaudeDir, withIntermediateDirectories: true)) != nil {
-                let enabledNames = Set(selectedSkills.map { $0.name })
-                // Prune any existing skill symlinks that are no longer enabled
-                if let existingItems = try? fileManager.contentsOfDirectory(at: repoClaudeDir, includingPropertiesForKeys: nil) {
-                    for item in existingItems {
-                        if !enabledNames.contains(item.lastPathComponent) {
-                            try? fileManager.removeItem(at: item)
-                        }
-                    }
-                }
-                for skill in selectedSkills {
-                    let dest = repoClaudeDir.appendingPathComponent(skill.name)
-                    if link(source: skill.path, destination: dest) {
-                        createdLinks.append("\(portal.projectPath.lastPathComponent)/.claude: \(skill.name)")
-                    }
-                }
+            syncSkillLinks(into: repoClaudeDir, label: "\(portal.projectPath.lastPathComponent)/.claude", selectedSkills: selectedSkills, createdLinks: &createdLinks)
+            syncedDirs.insert(".claude/skills")
+        }
+
+        // Sync any existing project-level agent directories (e.g. .matilda, .agents, .cursor)
+        for relativeSkillsDir in AgentRegistry.shared.allProjectSkillDirs where !syncedDirs.contains(relativeSkillsDir) {
+            let folderName = relativeSkillsDir.split(separator: "/").first.map(String.init) ?? relativeSkillsDir
+            let agentRoot = portal.projectPath.appendingPathComponent(folderName)
+            if fileManager.fileExists(atPath: agentRoot.path) {
+                let targetDir = portal.projectPath.appendingPathComponent(relativeSkillsDir)
+                syncSkillLinks(into: targetDir, label: "\(portal.projectPath.lastPathComponent)/\(folderName)", selectedSkills: selectedSkills, createdLinks: &createdLinks)
+                syncedDirs.insert(relativeSkillsDir)
             }
         }
         
@@ -210,6 +133,30 @@ public final class SyncEngine: @unchecked Sendable {
     }
     
     // MARK: - Safe Symlinker & MCP Compiler
+
+    /// Creates/prunes symlinks for `selectedSkills` inside a single project-level skills directory.
+    private func syncSkillLinks(
+        into targetDir: URL,
+        label: String,
+        selectedSkills: [Skill],
+        createdLinks: inout [String]
+    ) {
+        guard (try? fileManager.createDirectory(at: targetDir, withIntermediateDirectories: true)) != nil else {
+            return
+        }
+        let enabledNames = Set(selectedSkills.map { $0.name })
+        if let existingItems = try? fileManager.contentsOfDirectory(at: targetDir, includingPropertiesForKeys: nil) {
+            for item in existingItems where !enabledNames.contains(item.lastPathComponent) {
+                try? fileManager.removeItem(at: item)
+            }
+        }
+        for skill in selectedSkills {
+            let dest = targetDir.appendingPathComponent(skill.name)
+            if link(source: skill.path, destination: dest) {
+                createdLinks.append("\(label): \(skill.name)")
+            }
+        }
+    }
     
     @discardableResult
     private func link(source: URL, destination: URL) -> Bool {

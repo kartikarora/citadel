@@ -451,6 +451,64 @@ func runAllCitadelTests() async throws {
     marketplaceVMInstance.marketQuery = "react"
     expect(marketplaceVMInstance.marketQuery == "react", "MarketplaceViewModel operates independently of UI lifecycle")
     
+    // =========================================================================
+    // SUITE 13: AgentRegistry & .matilda Support
+    // =========================================================================
+    print("\n🧪 Suite 13: AgentRegistry & .matilda Support")
+    
+    let registry = AgentRegistry.shared
+    let matildaAgent = registry.agents.first { $0.id == "matilda" }
+    expect(matildaAgent != nil, "AgentRegistry includes matilda")
+    expect(matildaAgent?.skillsDir == ".matilda/skills", "Matilda project skillsDir is .matilda/skills")
+    expect(registry.allProjectSkillDirs.contains(".matilda/skills"), "allProjectSkillDirs includes .matilda/skills")
+    expect(registry.allProjectConfigFolderNames.contains(".matilda"), "allProjectConfigFolderNames includes .matilda")
+    
+    let expectedVercelAgents = ["claude-code", "cursor", "codex", "opencode", "windsurf", "goose", "universal", "antigravity", "github-copilot", "junie", "android-studio"]
+    for agentId in expectedVercelAgents {
+        expect(registry.agents.contains { $0.id == agentId }, "AgentRegistry includes \(agentId)")
+    }
+    
+    // Verify .matilda global detection & discovery with isolated temp home
+    let suite13FM = FileManager.default
+    let suite13Root = suite13FM.temporaryDirectory.appendingPathComponent("citadel-suite13-\(UUID().uuidString)")
+    defer { try? suite13FM.removeItem(at: suite13Root) }
+    
+    let tempHome = suite13Root.appendingPathComponent("home")
+    let tempXdg = tempHome.appendingPathComponent(".config")
+    let tempMatildaRoot = tempHome.appendingPathComponent(".matilda")
+    let tempMatildaSkills = tempMatildaRoot.appendingPathComponent("skills")
+    let tempMatildaSkill = tempMatildaSkills.appendingPathComponent("matilda-test-skill")
+    try suite13FM.createDirectory(at: tempMatildaSkill, withIntermediateDirectories: true)
+    try "# Matilda Test Skill\n".write(to: tempMatildaSkill.appendingPathComponent("SKILL.md"), atomically: true, encoding: .utf8)
+    
+    let detectedTargets = registry.detectedGlobalSyncTargets(home: tempHome, xdgConfig: tempXdg, fileManager: suite13FM)
+    expect(detectedTargets.contains { $0.agent.id == "matilda" && $0.skillsDir.path == tempMatildaSkills.path }, "detectedGlobalSyncTargets finds ~/.matilda/skills")
+    
+    let discoveryEngine = SkillDiscoveryEngine()
+    let discoveredMatilda = discoveryEngine.discoverSkills(in: [tempMatildaRoot])
+    expect(discoveredMatilda.count == 1, "Discovered 1 skill inside .matilda/skills")
+    expect(discoveredMatilda.first?.sourceKind == "matilda", "Skill discovered in .matilda has sourceKind 'matilda'")
+    
+    // Verify RollbackEngine includes .matilda/skills
+    let rollbackEngine = RollbackEngine()
+    expect(rollbackEngine.targetSkillDirectories.contains { $0.path.hasSuffix("/.matilda/skills") }, "RollbackEngine targetSkillDirectories includes .matilda/skills")
+    
+    // Verify SyncEngine.syncProjectPortal initializes & prunes .matilda/skills when .matilda exists in repo
+    let tempPortalRepo = suite13Root.appendingPathComponent("matilda-portal-repo")
+    let staleMatildaLink = tempPortalRepo.appendingPathComponent(".matilda/skills/stale-skill")
+    try suite13FM.createDirectory(at: tempPortalRepo.appendingPathComponent(".matilda/skills"), withIntermediateDirectories: true)
+    try "# Stale\n".write(to: staleMatildaLink, atomically: true, encoding: .utf8)
+    
+    let matildaTestPortal = ProjectPortal(
+        projectPath: tempPortalRepo,
+        enabledSkills: [],
+        enabledMCPs: [],
+        targetTools: [.antigravityGlobal]
+    )
+    let syncEngine = SyncEngine()
+    _ = syncEngine.syncProjectPortal(matildaTestPortal)
+    expect(!suite13FM.fileExists(atPath: staleMatildaLink.path), "syncProjectPortal prunes disabled skills inside .matilda/skills")
+    
     print("\n==================================================")
     print("🎉 ALL \(passedCount)/\(totalCount) UNIT TESTS PASSED SUCCESSFULLY!")
     print("==================================================\n")
