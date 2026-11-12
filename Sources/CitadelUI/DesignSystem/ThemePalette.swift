@@ -27,6 +27,40 @@ public struct ThemePalette {
     public let danger: Color
     public let warning: Color
     
+    public init(
+        isDark: Bool,
+        background: Color,
+        card: Color,
+        cardHover: Color,
+        cardSelected: Color,
+        border: Color,
+        borderStrong: Color,
+        textPrimary: Color,
+        textSecondary: Color,
+        textMuted: Color,
+        accent: Color,
+        accentMuted: Color,
+        success: Color,
+        danger: Color,
+        warning: Color
+    ) {
+        self.isDark = isDark
+        self.background = background
+        self.card = card
+        self.cardHover = cardHover
+        self.cardSelected = cardSelected
+        self.border = border
+        self.borderStrong = borderStrong
+        self.textPrimary = textPrimary
+        self.textSecondary = textSecondary
+        self.textMuted = textMuted
+        self.accent = accent
+        self.accentMuted = accentMuted
+        self.success = success
+        self.danger = danger
+        self.warning = warning
+    }
+    
     @MainActor
     public static func forPreset(_ preset: ThemePreset, isSystemDark: Bool? = nil) -> ThemePalette {
         let systemIsDark: Bool = {

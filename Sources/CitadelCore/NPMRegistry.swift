@@ -97,7 +97,7 @@ public final class NPMRegistry: Sendable {
                 try? FileManager.default.removeItem(at: tempStage)
             }
             
-            let res = CitadelUtils.runProcess(
+            _ = CitadelUtils.runProcess(
                 executable: npxBin.path,
                 arguments: ["-y", "skills", "add", packageSpec, "--agent", "claude-code", "-y", "--copy"],
                 workingDirectory: tempStage
@@ -106,8 +106,8 @@ public final class NPMRegistry: Sendable {
             // Check if skills CLI installed any SKILL.md under tempStage
             var foundSkillDir: URL? = nil
             if let enumerator = FileManager.default.enumerator(at: tempStage, includingPropertiesForKeys: [.isDirectoryKey]) {
-                for case let fileURL as URL in enumerator {
-                    if fileURL.lastPathComponent == "SKILL.md" {
+                while let item = enumerator.nextObject() {
+                    if let fileURL = item as? URL, fileURL.lastPathComponent == "SKILL.md" {
                         foundSkillDir = fileURL.deletingLastPathComponent()
                         break
                     }

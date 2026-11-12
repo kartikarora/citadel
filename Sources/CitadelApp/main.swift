@@ -203,20 +203,6 @@ public struct LiquidGlassPillModifier: ViewModifier {
     }
 }
 
-public extension View {
-    func liquidGlass(
-        cornerRadius: CGFloat = BrandCornerRadius.lg,
-        tint: Color? = nil,
-        material: Material = .ultraThinMaterial
-    ) -> some View {
-        modifier(LiquidGlassModifier(cornerRadius: cornerRadius, tint: tint, material: material))
-    }
-
-    func liquidGlassPill(tint: Color? = nil) -> some View {
-        modifier(LiquidGlassPillModifier(tint: tint))
-    }
-}
-
 public struct LiquidGlassCard<Content: View>: View {
     public let cornerRadius: CGFloat
     public let tint: Color?
@@ -4178,7 +4164,7 @@ struct MarketplaceChamber: View {
                     Spacer()
                     HStack(spacing: 4) {
                         Circle()
-                            .fill(Color.brand.success)
+                            .fill(store.palette.success)
                             .frame(width: 6, height: 6)
                         Text("NPX DRIVEN")
                             .font(.brandMonoBadge)
@@ -4233,7 +4219,7 @@ struct MarketplaceChamber: View {
                     .buttonStyle(.plain)
                 }
                 .padding(BrandSpacing.sm)
-                .background(store.palette.surfaceSunken)
+                .background(Color.brand.surfaceSunken)
                 .clipShape(BrandShapes.small)
             }
             .padding(BrandSpacing.md)
@@ -4285,10 +4271,10 @@ struct MarketplaceChamber: View {
                                                 Text("INSTALLED")
                                             }
                                             .font(.brandMonoBadge)
-                                            .foregroundColor(Color.brand.success)
+                                            .foregroundColor(store.palette.success)
                                             .padding(.horizontal, BrandSpacing.xs)
                                             .padding(.vertical, BrandSpacing.xxs - 2)
-                                            .background(Color.brand.success.opacity(0.12))
+                                            .background(store.palette.success.opacity(0.12))
                                             .clipShape(BrandShapes.pill)
                                         }
                                         
@@ -4312,7 +4298,7 @@ struct MarketplaceChamber: View {
                                             .foregroundColor(store.palette.textMuted)
                                             .padding(.horizontal, 6)
                                             .padding(.vertical, 2)
-                                            .background(store.palette.surfaceSunken)
+                                            .background(Color.brand.surfaceSunken)
                                             .clipShape(BrandShapes.small)
                                     }
                                     .padding(.top, 2)
@@ -4331,12 +4317,11 @@ struct MarketplaceChamber: View {
                                                 Text(isRemoving ? "REMOVING..." : "REMOVE")
                                                     .font(.brandMonoBadge)
                                             }
-                                            .foregroundColor(Color.brand.danger)
+                                            .foregroundColor(store.palette.danger)
                                             .padding(.horizontal, BrandSpacing.sm)
                                             .padding(.vertical, BrandSpacing.xs - 2)
-                                            .background(Color.brand.danger.opacity(0.12))
+                                            .background(store.palette.danger.opacity(0.12))
                                             .clipShape(BrandShapes.pill)
-                                            .overlay(BrandShapes.pill.stroke(Color.brand.danger.opacity(0.3), lineWidth: 1))
                                         }
                                         .buttonStyle(.plain)
                                         .disabled(isInstalling || isRemoving)

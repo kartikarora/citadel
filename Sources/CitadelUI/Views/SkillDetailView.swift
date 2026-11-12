@@ -89,10 +89,29 @@ public struct SkillDetailView: View {
     public var portals: [ProjectPortal] = []
     public var onToggleWorkspacePortal: ((URL) -> Void)? = nil
     
-    @State private var packageNodes: [SkillPackageNode] = []
-    @State private var selectedFileRelPath: String = "SKILL.md"
-    @State private var displayedContent: String = ""
-    @State private var selectedFileURL: URL? = nil
+    private var _packageNodes = SwiftUI.State(initialValue: [SkillPackageNode]())
+    private var packageNodes: [SkillPackageNode] {
+        get { _packageNodes.wrappedValue }
+        nonmutating set { _packageNodes.wrappedValue = newValue }
+    }
+    
+    private var _selectedFileRelPath = SwiftUI.State(initialValue: "SKILL.md")
+    private var selectedFileRelPath: String {
+        get { _selectedFileRelPath.wrappedValue }
+        nonmutating set { _selectedFileRelPath.wrappedValue = newValue }
+    }
+    
+    private var _displayedContent = SwiftUI.State(initialValue: "")
+    private var displayedContent: String {
+        get { _displayedContent.wrappedValue }
+        nonmutating set { _displayedContent.wrappedValue = newValue }
+    }
+    
+    private var _selectedFileURL = SwiftUI.State<URL?>(initialValue: nil)
+    private var selectedFileURL: URL? {
+        get { _selectedFileURL.wrappedValue }
+        nonmutating set { _selectedFileURL.wrappedValue = newValue }
+    }
     
     public init(
         skill: Skill,
@@ -434,7 +453,11 @@ private struct PackageNodeRow: View {
     let level: Int
     let onSelectFile: (SkillPackageNode) -> Void
     
-    @State private var isExpanded: Bool = true
+    private var _isExpanded = SwiftUI.State(initialValue: true)
+    private var isExpanded: Bool {
+        get { _isExpanded.wrappedValue }
+        nonmutating set { _isExpanded.wrappedValue = newValue }
+    }
     
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {

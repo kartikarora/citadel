@@ -407,13 +407,15 @@ func runAllCitadelTests() async throws {
     if FileManager.default.fileExists(atPath: coreDir.path),
        let coreFiles = FileManager.default.enumerator(at: coreDir, includingPropertiesForKeys: nil) {
         var coreUIImports: [String] = []
-        for case let file as URL in coreFiles where file.pathExtension == "swift" {
-            if let content = try? String(contentsOf: file, encoding: .utf8) {
-                let lines = content.components(separatedBy: .newlines)
-                for line in lines {
-                    let trimmed = line.trimmingCharacters(in: .whitespaces)
-                    if trimmed == "import SwiftUI" || trimmed == "import AppKit" {
-                        coreUIImports.append("\(file.lastPathComponent): \(trimmed)")
+        while let item = coreFiles.nextObject() {
+            if let file = item as? URL, file.pathExtension == "swift" {
+                if let content = try? String(contentsOf: file, encoding: .utf8) {
+                    let lines = content.components(separatedBy: .newlines)
+                    for line in lines {
+                        let trimmed = line.trimmingCharacters(in: .whitespaces)
+                        if trimmed == "import SwiftUI" || trimmed == "import AppKit" {
+                            coreUIImports.append("\(file.lastPathComponent): \(trimmed)")
+                        }
                     }
                 }
             }
@@ -446,8 +448,8 @@ func runAllCitadelTests() async throws {
     armoryVMInstance.searchText = "test"
     expect(armoryVMInstance.searchText == "test", "ArmoryViewModel operates independently of UI lifecycle")
     
-    marketplaceVMInstance.searchQuery = "react"
-    expect(marketplaceVMInstance.searchQuery == "react", "MarketplaceViewModel operates independently of UI lifecycle")
+    marketplaceVMInstance.marketQuery = "react"
+    expect(marketplaceVMInstance.marketQuery == "react", "MarketplaceViewModel operates independently of UI lifecycle")
     
     print("\n==================================================")
     print("🎉 ALL \(passedCount)/\(totalCount) UNIT TESTS PASSED SUCCESSFULLY!")
