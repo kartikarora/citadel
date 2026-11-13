@@ -41,12 +41,14 @@ public enum CitadelConstants {
     public enum OAuth {
         public static let defaultCallbackURL = "https://citadel.kartikarora.me/callback"
         public static let defaultGitHubClientID = ""
-        // Required for creating private repository on GitHub
-        public static let githubScope = "repo read:user"
+        // Required for creating private repository, reading verified email, and uploading SSH signing key on GitHub
+        public static let githubScope = "repo read:user user:email write:ssh_signing_key"
         public static let githubDeviceCodeURL = "https://github.com/login/device/code"
         public static let githubOAuthTokenURL = "https://github.com/login/oauth/access_token"
         public static let githubUserAPI = "https://api.github.com/user"
+        public static let githubUserEmailsAPI = "https://api.github.com/user/emails"
         public static let githubUserReposAPI = "https://api.github.com/user/repos"
+        public static let githubSSHSigningKeysAPI = "https://api.github.com/user/ssh_signing_keys"
         
         public static let gitlabDefaultClientID = "1f486414757e7bb7f3721ae9dfd4a22ad27c1965a0b777a835b8004f21da9ad2"
         public static let gitlabScope = "api read_user write_repository"

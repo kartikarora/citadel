@@ -520,6 +520,18 @@ struct NativeBlurBackground: NSViewRepresentable {
 
 // MARK: - Main Application Store
 
+/// Wraps a value so it can be handed to a detached background task. Only use for values that
+/// are not touched concurrently (e.g. a closure that runs exclusively on the background thread).
+struct UncheckedSendable<T>: @unchecked Sendable {
+    let value: T
+}
+
+struct SyncConflictInfo: Identifiable {
+    let id = UUID()
+    let message: String
+    let files: [String]
+}
+
 @MainActor
 final class CitadelStore: ObservableObject {
     @Published var selectedNav: NavSection = .armory
@@ -636,15 +648,53 @@ final class CitadelStore: ObservableObject {
     @Published var showReuseRepoPrompt: Bool = false
     
     func runRollbackEject() {
-        do {
+        runInBackground("Ejecting and materializing skills...", work: {
             let res = try RollbackEngine.shared.ejectAndMaterialize()
-            self.rollbackNotice = "Ejected (\(res.materializedSkills.count) copied)"
-            self.refresh()
-            DispatchQueue.main.asyncAfter(deadline: .now() + 4) {
-                self.rollbackNotice = ""
+            return "Ejected (\(res.materializedSkills.count) copied)"
+        }, onComplete: { result in
+            switch result {
+            case .success(let msg): self.rollbackNotice = msg
+            case .failure(let err): self.rollbackNotice = "Rollback error: \(err.localizedDescription)"
             }
-        } catch {
-            self.rollbackNotice = "Rollback error: \(error.localizedDescription)"
+            DispatchQueue.main.asyncAfter(deadline: .now() + 4) { self.rollbackNotice = "" }
+        })
+    }
+    
+    // MARK: - Background Operations
+    
+    /// Label of the operation currently running off the main thread (drives the global progress bar)
+    @Published var activeOperation: String? = nil
+    @Published var activeOperationError: String? = nil
+    /// Set when remote sync hit a conflict too large to auto-resolve
+    @Published var syncConflict: SyncConflictInfo? = nil
+    
+    /// Runs blocking filesystem/git work on a background thread, shows a progress bar while it runs,
+    /// then hops back to the main actor to refresh state and call `onComplete`.
+    func runInBackground<T>(
+        _ label: String,
+        refreshAfter: Bool = true,
+        rescanAfter: Bool = false,
+        work: @escaping () throws -> T,
+        onComplete: ((Result<T, Error>) -> Void)? = nil
+    ) {
+        let job = UncheckedSendable(value: work)
+        let completion = UncheckedSendable(value: onComplete)
+        activeOperation = label
+        activeOperationError = nil
+        Task.detached(priority: .userInitiated) {
+            let result: Result<T, Error>
+            do { result = .success(try job.value()) } catch { result = .failure(error) }
+            let boxed = UncheckedSendable(value: result)
+            await MainActor.run {
+                self.activeOperation = nil
+                if case .failure(let err) = boxed.value {
+                    self.activeOperationError = "\(label.replacingOccurrences(of: "...", with: "")) failed: \(err.localizedDescription)"
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 5) { self.activeOperationError = nil }
+                }
+                if refreshAfter { self.refresh() }
+                if rescanAfter { self.scanFilesystem() }
+                completion.value?(boxed.value)
+            }
         }
     }
     
@@ -765,22 +815,72 @@ final class CitadelStore: ObservableObject {
     }
     
     func syncAll() {
+        guard !isSyncing else { return }
         isSyncing = true
         syncNotice = "Synchronizing across Antigravity, Claude, and workspaces..."
-        
-        do {
+        runInBackground("Synchronizing skills across AI tools...", work: {
             let res = try SyncEngine.shared.syncAll()
             HubManager.shared.gitCommit(message: "chore(sync): synchronize skills and portals")
-            refresh()
-            let formatter = DateFormatter()
-            formatter.timeStyle = .short
-            self.lastSyncTime = formatter.string(from: Date())
-            self.syncNotice = "Multiverse synchronized (\(res.createdSymlinks.count) links verified)"
-        } catch {
-            self.syncNotice = "Sync failed: \(error.localizedDescription)"
-        }
-        
-        isSyncing = false
+            return res.createdSymlinks.count
+        }, onComplete: { result in
+            self.isSyncing = false
+            switch result {
+            case .success(let count):
+                self.lastSyncTime = Self.shortTime()
+                self.syncNotice = "Multiverse synchronized (\(count) links verified)"
+            case .failure(let err):
+                self.syncNotice = "Sync failed: \(err.localizedDescription)"
+            }
+        })
+    }
+    
+    private static func shortTime() -> String {
+        let formatter = DateFormatter()
+        formatter.timeStyle = .short
+        return formatter.string(from: Date())
+    }
+    
+    /// Sync button: local multiverse sync, then two-way pull/rebase/push if a remote is configured.
+    func syncAllWithRemote() {
+        guard !isSyncing else { return }
+        isSyncing = true
+        let hasRemote = remoteStatus.isConfigured
+        if hasRemote { isCloudSyncing = true }
+        syncNotice = hasRemote ? "Syncing locally and with remote..." : "Synchronizing across Antigravity, Claude, and workspaces..."
+        runInBackground(hasRemote ? "Syncing with remote (pull, rebase, push)..." : "Synchronizing skills across AI tools...",
+                        rescanAfter: hasRemote,
+                        work: { () throws -> (links: Int, remote: RemoteSyncManager.SmartSyncResult?) in
+            let res = try SyncEngine.shared.syncAll()
+            HubManager.shared.gitCommit(message: "chore(sync): synchronize skills and portals")
+            let remote = RemoteSyncManager.shared.getRemoteURL() != nil ? RemoteSyncManager.shared.smartSync() : nil
+            return (res.createdSymlinks.count, remote)
+        }, onComplete: { result in
+            self.isSyncing = false
+            self.isCloudSyncing = false
+            switch result {
+            case .success(let out):
+                if let remote = out.remote {
+                    if remote.needsManualResolution {
+                        self.syncConflict = SyncConflictInfo(message: remote.message, files: remote.conflictFiles)
+                        self.syncNotice = "Remote sync needs your attention"
+                        return
+                    }
+                    self.syncNotice = remote.success ? "Remote: \(remote.message)" : "Remote sync failed: \(remote.message)"
+                    if remote.success {
+                        self.lastSyncTime = Self.shortTime()
+                        self.cloudSyncSuccess = true
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 3) { self.cloudSyncSuccess = false }
+                    } else {
+                        self.activeOperationError = "Remote sync failed: \(remote.message)"
+                    }
+                } else {
+                    self.lastSyncTime = Self.shortTime()
+                    self.syncNotice = "Multiverse synchronized (\(out.links) links verified)"
+                }
+            case .failure(let err):
+                self.syncNotice = "Sync failed: \(err.localizedDescription)"
+            }
+        })
     }
     
     func scanFilesystem() {
@@ -821,19 +921,33 @@ final class CitadelStore: ObservableObject {
     }
     
     func ingestSkill(_ skill: DiscoveredSkill) {
-        try? SkillDiscoveryEngine.shared.ingest(skill: skill)
-        refresh()
-        scanFilesystem()
+        let item = UncheckedSendable(value: skill)
+        runInBackground("Ingesting \(skill.name)...", rescanAfter: true, work: {
+            try SkillDiscoveryEngine.shared.ingest(skill: item.value)
+        })
     }
     
     func unifySkillGroup(_ group: SkillGroup) {
-        do {
-            _ = try SkillGroupManager.shared.unifyGroup(group)
-            refresh()
-            scanFilesystem()
-        } catch {
-            print("Unify error: \(error.localizedDescription)")
-        }
+        let item = UncheckedSendable(value: group)
+        runInBackground("Unifying \(group.name)...", rescanAfter: true, work: {
+            _ = try SkillGroupManager.shared.unifyGroup(item.value)
+        })
+    }
+    
+    func ingestMCP(_ mcp: DiscoveredMCP) {
+        let item = UncheckedSendable(value: mcp)
+        runInBackground("Importing MCP \(mcp.name)...", work: {
+            try MultiverseDiscoveryEngine.shared.ingestMCP(item.value)
+        })
+    }
+    
+    func connectWorkspacePortal(_ ws: DiscoveredWorkspace) {
+        let item = UncheckedSendable(value: ws)
+        runInBackground("Connecting portal \(ws.name)...", rescanAfter: true, work: {
+            try MultiverseDiscoveryEngine.shared.connectWorkspaceAsPortal(item.value)
+            _ = try SyncEngine.shared.syncAll()
+            HubManager.shared.gitCommit(message: "chore(sync): connect workspace portal")
+        })
     }
     
     func selectDiscoverySkillGroup(_ group: SkillGroup) {
@@ -958,32 +1072,43 @@ final class CitadelStore: ObservableObject {
     }
     
     func pushRemote() {
+        guard !isCloudSyncing else { return }
         isCloudSyncing = true
-        _ = RemoteSyncManager.shared.push()
-        refresh()
-        scanFilesystem()
-        isCloudSyncing = false
-        cloudSyncSuccess = true
-        DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
-            self.cloudSyncSuccess = false
-        }
+        runInBackground("Pushing to remote...", rescanAfter: true, work: {
+            RemoteSyncManager.shared.push()
+        }, onComplete: { result in
+            self.isCloudSyncing = false
+            if case .success(let res) = result, res.success {
+                self.cloudSyncSuccess = true
+                DispatchQueue.main.asyncAfter(deadline: .now() + 3) { self.cloudSyncSuccess = false }
+            } else if case .success(let res) = result {
+                self.activeOperationError = "Push failed: \(res.message)"
+            }
+        })
     }
     
     func pullRemote() {
+        guard !isCloudSyncing else { return }
         isCloudSyncing = true
-        _ = try? RemoteSyncManager.shared.pull()
-        refresh()
-        scanFilesystem()
-        isCloudSyncing = false
-        cloudSyncSuccess = true
-        DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
-            self.cloudSyncSuccess = false
-        }
+        runInBackground("Pulling from remote...", rescanAfter: true, work: {
+            try RemoteSyncManager.shared.pull()
+        }, onComplete: { result in
+            self.isCloudSyncing = false
+            if case .success(let res) = result, res.success {
+                self.cloudSyncSuccess = true
+                DispatchQueue.main.asyncAfter(deadline: .now() + 3) { self.cloudSyncSuccess = false }
+            } else if case .success(let res) = result {
+                self.activeOperationError = res.message
+            }
+        })
     }
     
     func connectDedicatedSyncRepository(for provider: GitProvider) {
         isLoadingRepos = true
         Task {
+            if provider == .github {
+                await GitAuthProvider.shared.syncGitHubSigningAndIdentity()
+            }
             _ = try? await GitAuthProvider.shared.ensurePrivateSyncRepo(provider: provider)
             await MainActor.run {
                 self.isLoadingRepos = false
@@ -1033,6 +1158,11 @@ final class CitadelStore: ObservableObject {
                 
                 // Poll for token completion
                 _ = try await GitAuthProvider.shared.pollDeviceToken(provider: provider, deviceCode: devCode.deviceCode, interval: devCode.interval)
+                
+                // Sync verified commit email & upload SSH signing key to GitHub
+                if provider == .github {
+                    await GitAuthProvider.shared.syncGitHubSigningAndIdentity()
+                }
                 
                 // Scope sync strictly to the dedicated private `citadel-sync` repo
                 if RemoteSyncManager.shared.getRemoteURL() == nil {
@@ -2390,6 +2520,72 @@ struct CitadelRootView: View {
     var body: some View {
         CitadelBodyView(store: store)
             .preferredColorScheme(preferredScheme)
+            .overlay(alignment: .bottom) {
+                BackgroundOperationBanner(store: store)
+                    .padding(.bottom, 16)
+            }
+            .animation(.easeInOut(duration: 0.2), value: store.activeOperation)
+            .animation(.easeInOut(duration: 0.2), value: store.activeOperationError)
+            .alert(item: $store.syncConflict) { conflict in
+                let fileList = conflict.files.isEmpty ? "" : "\n\nConflicting files:\n" + conflict.files.prefix(10).map { "• \($0)" }.joined(separator: "\n") + (conflict.files.count > 10 ? "\n…and \(conflict.files.count - 10) more" : "")
+                return Alert(
+                    title: Text("Sync Conflict Needs Your Attention"),
+                    message: Text(conflict.message + fileList),
+                    primaryButton: .default(Text("Open ~/.citadel")) {
+                        NSWorkspace.shared.open(HubManager.shared.hubURL)
+                    },
+                    secondaryButton: .cancel(Text("Later"))
+                )
+            }
+    }
+}
+
+/// Non-blocking progress banner shown while `CitadelStore.runInBackground` work is in flight.
+private struct BackgroundOperationBanner: View {
+    @ObservedObject var store: CitadelStore
+    
+    var body: some View {
+        Group {
+            if let label = store.activeOperation {
+                VStack(alignment: .leading, spacing: 6) {
+                    HStack(spacing: 8) {
+                        ProgressView().controlSize(.small)
+                        Text(label)
+                            .font(.brandMonoMicro)
+                            .foregroundColor(store.palette.textPrimary)
+                            .lineLimit(1)
+                    }
+                    ProgressView()
+                        .progressViewStyle(.linear)
+                        .tint(store.palette.accent)
+                }
+                .padding(.horizontal, 14)
+                .padding(.vertical, 10)
+                .frame(width: 340)
+                .liquidGlass(cornerRadius: BrandCornerRadius.sm, tint: store.palette.accent)
+                .transition(.move(edge: .bottom).combined(with: .opacity))
+            } else if let err = store.activeOperationError {
+                HStack(spacing: 8) {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .foregroundColor(.yellow)
+                    Text(err)
+                        .font(.brandMonoMicro)
+                        .foregroundColor(store.palette.textPrimary)
+                        .lineLimit(2)
+                    Spacer(minLength: 0)
+                    Button(action: { store.activeOperationError = nil }) {
+                        Image(systemName: "xmark")
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundColor(store.palette.textMuted)
+                }
+                .padding(.horizontal, 14)
+                .padding(.vertical, 10)
+                .frame(width: 380)
+                .liquidGlass(cornerRadius: BrandCornerRadius.sm, tint: .yellow)
+                .transition(.move(edge: .bottom).combined(with: .opacity))
+            }
+        }
     }
 }
 
@@ -2736,7 +2932,7 @@ struct HeaderChrome: View {
             
             // Sync Button (Liquid Glass Interactive)
             Button(action: {
-                store.syncAll()
+                store.syncAllWithRemote()
             }) {
                 HStack(spacing: BrandSpacing.xxs + 2) {
                     Image(systemName: "arrow.triangle.2.circlepath")
@@ -3932,8 +4128,7 @@ struct DiscoveryChamber: View {
                                     Button("IMPORT CONFIG") {
                                         store.itemPendingApproval = "MCP Server: \(mcp.name) [from \(mcp.clientName)]"
                                         store.approvalAction = {
-                                            try? MultiverseDiscoveryEngine.shared.ingestMCP(mcp)
-                                            store.refresh()
+                                            store.ingestMCP(mcp)
                                         }
                                         store.showApprovalSheet = true
                                     }
@@ -3977,8 +4172,7 @@ struct DiscoveryChamber: View {
                                         Button("CONNECT PORTAL") {
                                             store.itemPendingApproval = "Workspace Portal: \(ws.name) (\(ws.path.path))"
                                             store.approvalAction = {
-                                                try? MultiverseDiscoveryEngine.shared.connectWorkspaceAsPortal(ws)
-                                                store.syncAll()
+                                                store.connectWorkspacePortal(ws)
                                             }
                                             store.showApprovalSheet = true
                                         }
@@ -4068,8 +4262,10 @@ struct DiscoveryChamber: View {
                         .keyboardShortcut(.cancelAction)
                     
                     Button("Grant Permission & Ingest") {
-                        store.approvalAction?()
+                        // Dismiss first; the action itself runs on a background thread
+                        let action = store.approvalAction
                         store.showApprovalSheet = false
+                        action?()
                     }
                     .buttonStyle(.borderedProminent)
                     .tint(store.palette.accent)
@@ -4490,7 +4686,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
     
     @objc func syncNow() {
-        store.syncAll()
+        store.syncAllWithRemote()
     }
     
     @objc func quitApp() {

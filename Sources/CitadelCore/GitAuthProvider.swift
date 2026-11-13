@@ -648,4 +648,110 @@ public final class GitAuthProvider: @unchecked Sendable {
             return clone
         }
     }
+
+    // MARK: - GitHub Verified Commit Identity & SSH Signing Key Upload
+
+    /// Resolves the user's primary verified GitHub email and uploads Citadel's SSH signing key
+    /// to GitHub (`/user/ssh_signing_keys`) so synced commits show as "Verified".
+    public func syncGitHubSigningAndIdentity() async {
+        guard let token = getToken(for: .github), !token.isEmpty else { return }
+
+        if let identity = await fetchGitHubPrimaryVerifiedEmail(token: token) {
+            HubManager.shared.updateCommitIdentity(email: identity.email, name: identity.name)
+        }
+        await ensureGitHubSigningKeyUploaded(token: token)
+    }
+
+    private func fetchGitHubPrimaryVerifiedEmail(token: String) async -> (email: String, name: String?)? {
+        var resolvedName: String?
+        var noreplyFallback: String?
+        var profileEmail: String?
+
+        if let userURL = URL(string: CitadelConstants.OAuth.githubUserAPI) {
+            var userReq = URLRequest(url: userURL)
+            userReq.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+            userReq.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
+            if let (data, resp) = try? await URLSession.shared.data(for: userReq),
+               let http = resp as? HTTPURLResponse, http.statusCode == 200,
+               let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
+                if let name = json["name"] as? String, !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                    resolvedName = name
+                } else if let login = json["login"] as? String {
+                    resolvedName = login
+                }
+                if let email = json["email"] as? String, !email.isEmpty {
+                    profileEmail = email
+                }
+                if let id = json["id"] as? Int, let login = json["login"] as? String {
+                    noreplyFallback = "\(id)+\(login)@users.noreply.github.com"
+                }
+            }
+        }
+
+        if let emailsURL = URL(string: CitadelConstants.OAuth.githubUserEmailsAPI) {
+            var req = URLRequest(url: emailsURL)
+            req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+            req.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
+            if let (data, resp) = try? await URLSession.shared.data(for: req),
+               let http = resp as? HTTPURLResponse, http.statusCode == 200,
+               let list = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] {
+                if let primary = list.first(where: { ($0["primary"] as? Bool == true) && ($0["verified"] as? Bool == true) }),
+                   let email = primary["email"] as? String, !email.isEmpty {
+                    return (email, resolvedName)
+                }
+                if let anyVerified = list.first(where: { $0["verified"] as? Bool == true }),
+                   let email = anyVerified["email"] as? String, !email.isEmpty {
+                    return (email, resolvedName)
+                }
+            }
+        }
+
+        if let fallback = noreplyFallback ?? profileEmail {
+            return (fallback, resolvedName)
+        }
+        return nil
+    }
+
+    private func ensureGitHubSigningKeyUploaded(token: String) async {
+        let hub = HubManager.shared
+        hub.setupSigningKeyAndGitIdentity()
+
+        guard let rawPubKey = try? String(contentsOf: hub.signingPubKeyFile, encoding: .utf8) else { return }
+        let trimmedPubKey = rawPubKey.trimmingCharacters(in: .whitespacesAndNewlines)
+        let keyParts = trimmedPubKey.split(whereSeparator: { $0.isWhitespace })
+        guard keyParts.count >= 2 else { return }
+        let canonicalKeyPrefix = "\(keyParts[0]) \(keyParts[1])"
+
+        guard let keysURL = URL(string: CitadelConstants.OAuth.githubSSHSigningKeysAPI) else { return }
+
+        // Check if this signing key is already registered on GitHub
+        var listReq = URLRequest(url: keysURL)
+        listReq.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        listReq.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
+        if let (data, resp) = try? await URLSession.shared.data(for: listReq),
+           let http = resp as? HTTPURLResponse, http.statusCode == 200,
+           let existing = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] {
+            let alreadyExists = existing.contains { entry in
+                guard let key = entry["key"] as? String else { return false }
+                let parts = key.split(whereSeparator: { $0.isWhitespace })
+                return parts.count >= 2 && "\(parts[0]) \(parts[1])" == canonicalKeyPrefix
+            }
+            if alreadyExists { return }
+        }
+
+        // Upload as a GitHub SSH Signing Key
+        var createReq = URLRequest(url: keysURL)
+        createReq.httpMethod = "POST"
+        createReq.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        createReq.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
+        createReq.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        let deviceLabel = Host.current().localizedName ?? CitadelConstants.Git.deviceUsername
+        let payload: [String: Any] = [
+            "title": "Citadel (\(deviceLabel))",
+            "key": trimmedPubKey
+        ]
+        guard let body = try? JSONSerialization.data(withJSONObject: payload) else { return }
+        createReq.httpBody = body
+        _ = try? await URLSession.shared.data(for: createReq)
+    }
 }

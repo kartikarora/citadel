@@ -552,6 +552,166 @@ func runAllCitadelTests() async throws {
     _ = syncEngine.syncProjectPortal(matildaTestPortal)
     expect(!suite13FM.fileExists(atPath: staleBilueRepoLink.path), "syncProjectPortal also syncs/prunes suffixed project dirs like .claude-bilue/skills")
     
+    // Suite 14: Smart Remote Sync — timestamp race resolution vs. manual conflict hand-off
+    print("\n🧪 Suite 14: Smart Remote Sync & Conflict Handling")
+    let s14Root = FileManager.default.temporaryDirectory.appendingPathComponent("citadel_s14_\(UUID().uuidString)")
+    defer { try? FileManager.default.removeItem(at: s14Root) }
+    try FileManager.default.createDirectory(at: s14Root, withIntermediateDirectories: true)
+    
+    @discardableResult
+    func s14Git(_ dir: URL, _ args: [String], epoch: Int? = nil) -> (exitCode: Int32, output: String) {
+        var envArgs: [String] = []
+        if let epoch = epoch {
+            envArgs = ["GIT_AUTHOR_DATE=@\(epoch) +0000", "GIT_COMMITTER_DATE=@\(epoch) +0000"]
+        }
+        return CitadelUtils.runProcess(executable: "/usr/bin/env",
+                                       arguments: envArgs + ["git", "-c", "commit.gpgsign=false", "-C", dir.path] + args)
+    }
+    func s14Commit(_ hub: HubManager, _ rel: String, _ content: String, epoch: Int) {
+        let url = hub.hubURL.appendingPathComponent(rel)
+        try? FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try? content.write(to: url, atomically: true, encoding: .utf8)
+        s14Git(hub.hubURL, ["add", "-A"])
+        s14Git(hub.hubURL, ["commit", "-q", "-m", "edit \(rel)"], epoch: epoch)
+    }
+    func s14Read(_ hub: HubManager, _ rel: String) -> String {
+        (try? String(contentsOf: hub.hubURL.appendingPathComponent(rel), encoding: .utf8)) ?? ""
+    }
+    
+    let t0 = Int(Date().timeIntervalSince1970) - 10_000
+    let baseLines = (1...60).map { "line \($0)" }
+    let sharedRel = "skills/shared/SKILL.md"
+    
+    let bareRemote = s14Root.appendingPathComponent("remote.git")
+    s14Git(s14Root, ["init", "-q", "--bare", "--initial-branch=main", bareRemote.path])
+    
+    // Device A seeds base commit A and pushes
+    let devA = HubManager(customHubURL: s14Root.appendingPathComponent("devA"))
+    try devA.initializeHub()
+    let syncA = RemoteSyncManager(hub: devA)
+    _ = syncA.setRemoteURL(bareRemote.path)
+    s14Commit(devA, sharedRel, baseLines.joined(separator: "\n") + "\n", epoch: t0)
+    let seed = syncA.smartSync(resyncTools: false)
+    expect(seed.success && seed.pushed, "smartSync pushes initial commit to empty remote")
+    
+    // Device B clones the same remote
+    let devBURL = s14Root.appendingPathComponent("devB")
+    s14Git(s14Root, ["clone", "-q", bareRemote.path, devBURL.path])
+    let devB = HubManager(customHubURL: devBURL)
+    try devB.initializeHub()
+    let syncB = RemoteSyncManager(hub: devB)
+    
+    // 1. Non-overlapping divergence: A → B(remote) and A → C(local) touch different files
+    s14Commit(devA, "skills/alpha/SKILL.md", "alpha\n", epoch: t0 + 10)
+    _ = syncA.smartSync(resyncTools: false)
+    s14Commit(devB, "skills/beta/SKILL.md", "beta\n", epoch: t0 + 20)
+    let nonOverlap = syncB.smartSync(resyncTools: false)
+    expect(nonOverlap.success && nonOverlap.pulled && nonOverlap.pushed, "Diverged, non-overlapping changes rebase cleanly and push")
+    expect(s14Read(devB, "skills/alpha/SKILL.md") == "alpha\n" && s14Read(devB, "skills/beta/SKILL.md") == "beta\n", "Both devices' non-overlapping changes are kept")
+    _ = syncA.smartSync(resyncTools: false)
+    expect(s14Read(devA, "skills/beta/SKILL.md") == "beta\n", "Other device receives the rebased change on next sync")
+
+    // 1b. Non-overlapping edits at opposite ends of the SAME file — clean rebase merges both
+    var sameFileA = baseLines; sameFileA[0] = "header edited on A"
+    s14Commit(devA, sharedRel, sameFileA.joined(separator: "\n") + "\n", epoch: t0 + 30)
+    _ = syncA.smartSync(resyncTools: false)
+    var sameFileB = baseLines; sameFileB[59] = "footer edited on B"
+    s14Commit(devB, sharedRel, sameFileB.joined(separator: "\n") + "\n", epoch: t0 + 40)
+    let sameFileMerge = syncB.smartSync(resyncTools: false)
+    expect(sameFileMerge.success && sameFileMerge.pulled && sameFileMerge.pushed, "Same-file non-overlapping hunks merge cleanly during rebase")
+    let mergedLines = s14Read(devB, sharedRel)
+    expect(mergedLines.contains("header edited on A") && mergedLines.contains("footer edited on B"), "Both header and footer edits in the same file are preserved")
+    _ = syncA.smartSync(resyncTools: false)
+    
+    // 2a. Small race on the same line — local edit is newer, so local wins
+    var raceRemote = s14Read(devA, sharedRel).components(separatedBy: "\n").filter { !$0.isEmpty }
+    raceRemote[0] = "title from A"
+    s14Commit(devA, sharedRel, raceRemote.joined(separator: "\n") + "\n", epoch: t0 + 100)
+    _ = syncA.smartSync(resyncTools: false)
+    var raceLocal = s14Read(devB, sharedRel).components(separatedBy: "\n").filter { !$0.isEmpty }
+    raceLocal[0] = "title from B"
+    s14Commit(devB, sharedRel, raceLocal.joined(separator: "\n") + "\n", epoch: t0 + 200)
+    let raceLocalWins = syncB.smartSync(resyncTools: false)
+    expect(raceLocalWins.success && raceLocalWins.pushed, "Small same-line race auto-resolves and pushes")
+    expect(s14Read(devB, sharedRel).hasPrefix("title from B\n"), "Race resolution keeps the newer (local) edit")
+    expect(raceLocalWins.conflictStrategy?.contains(sharedRel) == true, "Race resolution reports which file was settled by timestamp")
+    _ = syncA.smartSync(resyncTools: false)
+    
+    // 2b. Small race — remote edit is newer, so remote wins
+    var race2Remote = s14Read(devA, sharedRel).components(separatedBy: "\n"); race2Remote[1] = "second from A"
+    s14Commit(devA, sharedRel, race2Remote.joined(separator: "\n"), epoch: t0 + 400)
+    _ = syncA.smartSync(resyncTools: false)
+    var race2Local = s14Read(devB, sharedRel).components(separatedBy: "\n"); race2Local[1] = "second from B"
+    s14Commit(devB, sharedRel, race2Local.joined(separator: "\n"), epoch: t0 + 300)
+    let raceRemoteWins = syncB.smartSync(resyncTools: false)
+    expect(raceRemoteWins.success && !raceRemoteWins.needsManualResolution, "Older local race edit resolves without user intervention")
+    expect(s14Read(devB, sharedRel).contains("second from A") && !s14Read(devB, sharedRel).contains("second from B"), "Race resolution keeps the newer (remote) edit")
+    _ = syncA.smartSync(resyncTools: false)
+
+    // 2c. Metadata file conflict (portals.json) always auto-resolves by timestamp
+    s14Commit(devA, CitadelConstants.Paths.portalsFile, "[\n  {\"name\": \"a\"}\n]\n", epoch: t0 + 410)
+    _ = syncA.smartSync(resyncTools: false)
+    s14Commit(devB, CitadelConstants.Paths.portalsFile, "[\n  {\"name\": \"b\"}\n]\n", epoch: t0 + 420)
+    let metaResolve = syncB.smartSync(resyncTools: false)
+    expect(metaResolve.success && !metaResolve.needsManualResolution, "Metadata file conflict (portals.json) auto-resolves by timestamp")
+    expect(s14Read(devB, CitadelConstants.Paths.portalsFile).contains("\"b\""), "Metadata file conflict keeps newer timestamp version")
+    _ = syncA.smartSync(resyncTools: false)
+    
+    // 3a. Big conflict — both sides rewrite the whole file (>40 conflicting lines): flag to the user, never auto-pick
+    s14Commit(devA, sharedRel, (1...60).map { "A rewrite \($0)" }.joined(separator: "\n") + "\n", epoch: t0 + 500)
+    _ = syncA.smartSync(resyncTools: false)
+    s14Commit(devB, sharedRel, (1...60).map { "B rewrite \($0)" }.joined(separator: "\n") + "\n", epoch: t0 + 600)
+    let headBeforeBig = s14Git(devBURL, ["rev-parse", "HEAD"]).output
+    let big = syncB.smartSync(resyncTools: false)
+    expect(!big.success && big.needsManualResolution, "Large whole-file conflict is flagged for manual resolution")
+    expect(big.conflictFiles.contains(sharedRel), "Flagged result lists the conflicting file")
+    expect(!syncB.isResolutionInProgress, "Citadel leaves the repo clean (no half-finished rebase) after flagging")
+    expect(s14Git(devBURL, ["rev-parse", "HEAD"]).output == headBeforeBig, "Local commit is preserved untouched after flagging")
+    expect(s14Read(devB, sharedRel).hasPrefix("B rewrite 1\n"), "Local file content is preserved after flagging")
+    expect(s14Git(bareRemote, ["show", "main:\(sharedRel)"]).output.hasPrefix("A rewrite 1\n"), "Nothing is pushed when a conflict is flagged")
+
+    // Reset devB to match remote before next complex conflict test
+    s14Git(devBURL, ["reset", "--hard", "origin/main"])
+
+    // 3b. Complex multi-hunk conflict (>3 separate conflicting hunks across a file) — flagged for manual resolution
+    var multiHunkA = (1...60).map { "A rewrite \($0)" }
+    var multiHunkB = multiHunkA
+    for idx in [2, 15, 30, 45, 55] {
+        multiHunkA[idx] = "A hunk at \(idx)"
+        multiHunkB[idx] = "B hunk at \(idx)"
+    }
+    s14Commit(devA, sharedRel, multiHunkA.joined(separator: "\n") + "\n", epoch: t0 + 700)
+    _ = syncA.smartSync(resyncTools: false)
+    s14Commit(devB, sharedRel, multiHunkB.joined(separator: "\n") + "\n", epoch: t0 + 800)
+    let multiHunkRes = syncB.smartSync(resyncTools: false)
+    expect(!multiHunkRes.success && multiHunkRes.needsManualResolution, "Multi-hunk conflict (>3 hunks) is flagged for manual resolution")
+    expect(multiHunkRes.conflictFiles.contains(sharedRel), "Multi-hunk conflict lists the conflicting file")
+    expect(!syncB.isResolutionInProgress, "Repo is left clean after aborting multi-hunk conflict")
+
+    // Reset devB to match remote before modify/delete conflict test
+    s14Git(devBURL, ["reset", "--hard", "origin/main"])
+
+    // 3c. Complex modify/delete conflict (remote deletes skill while local modifies it) — flagged for manual resolution
+    s14Git(devA.hubURL, ["rm", "-q", "skills/alpha/SKILL.md"])
+    s14Git(devA.hubURL, ["commit", "-q", "-m", "delete alpha"], epoch: t0 + 900)
+    _ = syncA.smartSync(resyncTools: false)
+    s14Commit(devB, "skills/alpha/SKILL.md", "alpha modified locally\n", epoch: t0 + 950)
+    let modDeleteRes = syncB.smartSync(resyncTools: false)
+    expect(!modDeleteRes.success && modDeleteRes.needsManualResolution, "Modify/delete conflict is flagged for manual resolution")
+    expect(modDeleteRes.conflictFiles.contains("skills/alpha/SKILL.md"), "Modify/delete conflict reports the deleted/modified file")
+    expect(s14Read(devB, "skills/alpha/SKILL.md") == "alpha modified locally\n", "Local modified file is preserved after modify/delete conflict abort")
+
+    // Reset devB to the pre-3a state so test 4 can start a manual rebase conflict
+    s14Commit(devB, sharedRel, (1...60).map { "B manual conflict \($0)" }.joined(separator: "\n") + "\n", epoch: t0 + 980)
+    
+    // 4. User resolving in their own git client — Citadel must not interfere
+    s14Git(devBURL, ["rebase", "origin/main"])
+    expect(syncB.isResolutionInProgress, "Detects a rebase the user started")
+    let duringUserRebase = syncB.smartSync(resyncTools: false)
+    expect(duringUserRebase.needsManualResolution && syncB.isResolutionInProgress, "smartSync does not abort a user's in-progress rebase")
+    expect(devB.gitCommit(message: "should be skipped") == false, "gitCommit is skipped while a rebase is in progress")
+    s14Git(devBURL, ["rebase", "--abort"])
+    
     print("\n==================================================")
     print("🎉 ALL \(passedCount)/\(totalCount) UNIT TESTS PASSED SUCCESSFULLY!")
     print("==================================================\n")

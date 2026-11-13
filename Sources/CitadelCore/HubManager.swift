@@ -66,6 +66,38 @@ public final class HubManager: @unchecked Sendable {
     public static var botName: String { CitadelConstants.Git.botName }
     public static var botEmail: String { CitadelConstants.Git.botEmail }
     public static var keychainSigningService: String { CitadelConstants.Keychain.signingService }
+
+    private static let commitEmailDefaultsKey = "citadel.git.verifiedCommitEmail"
+    private static let commitNameDefaultsKey = "citadel.git.verifiedCommitName"
+
+    public var effectiveCommitEmail: String {
+        let stored = UserDefaults.standard.string(forKey: Self.commitEmailDefaultsKey)?.trimmingCharacters(in: .whitespacesAndNewlines)
+        if let stored = stored, !stored.isEmpty {
+            return stored
+        }
+        return Self.botEmail
+    }
+
+    public var effectiveCommitName: String {
+        let stored = UserDefaults.standard.string(forKey: Self.commitNameDefaultsKey)?.trimmingCharacters(in: .whitespacesAndNewlines)
+        if let stored = stored, !stored.isEmpty {
+            return stored
+        }
+        return Self.botName
+    }
+
+    /// Updates the local Git commit identity (e.g., to the user's primary verified GitHub email)
+    /// and refreshes `allowed_signers` + `.git/config` so commits verify cleanly on GitHub.
+    public func updateCommitIdentity(email: String, name: String? = nil) {
+        let trimmedEmail = email.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedEmail.isEmpty else { return }
+        UserDefaults.standard.set(trimmedEmail, forKey: Self.commitEmailDefaultsKey)
+        if let name = name?.trimmingCharacters(in: .whitespacesAndNewlines), !name.isEmpty {
+            UserDefaults.standard.set(name, forKey: Self.commitNameDefaultsKey)
+        }
+        setupSigningKeyAndGitIdentity()
+        configureGitIdentityAndSigning()
+    }
     
     /// Ensures ed25519 signing key exists in .keys/ and Keychain, and allowed_signers is configured
     public func setupSigningKeyAndGitIdentity() {
@@ -101,14 +133,18 @@ public final class HubManager: @unchecked Sendable {
         // Configure allowed_signers file
         if let pubKey = try? String(contentsOf: signingPubKeyFile, encoding: .utf8) {
             let trimmed = pubKey.trimmingCharacters(in: .whitespacesAndNewlines)
-            let allowedLine = "\(Self.botEmail) \(trimmed)\n"
-            try? allowedLine.write(to: allowedSignersFile, atomically: true, encoding: .utf8)
+            var lines = ["\(effectiveCommitEmail) \(trimmed)"]
+            if effectiveCommitEmail != Self.botEmail {
+                lines.append("\(Self.botEmail) \(trimmed)")
+            }
+            let allowedContent = lines.joined(separator: "\n") + "\n"
+            try? allowedContent.write(to: allowedSignersFile, atomically: true, encoding: .utf8)
         }
     }
     
     public func configureGitIdentityAndSigning() {
-        _ = runGit(["config", "user.name", Self.botName])
-        _ = runGit(["config", "user.email", Self.botEmail])
+        _ = runGit(["config", "user.name", effectiveCommitName])
+        _ = runGit(["config", "user.email", effectiveCommitEmail])
         _ = runGit(["config", "gpg.format", "ssh"])
         _ = runGit(["config", "user.signingkey", signingPubKeyFile.path])
         _ = runGit(["config", "commit.gpgsign", "true"])
@@ -136,12 +172,17 @@ public final class HubManager: @unchecked Sendable {
     
     @discardableResult
     public func gitCommit(message: String) -> Bool {
+        // Don't commit while the user is resolving a rebase/merge in their git client
+        let gitDir = hubURL.appendingPathComponent(".git")
+        for marker in ["rebase-merge", "rebase-apply", "MERGE_HEAD"] where fileManager.fileExists(atPath: gitDir.appendingPathComponent(marker).path) {
+            return false
+        }
         _ = runGit(["add", "."])
         var commitArgs = ["commit"]
         if FeatureFlags.shared.commitSigningEnabled {
             commitArgs.append("-S")
         }
-        commitArgs.append("--author=\(Self.botName) <\(Self.botEmail)>")
+        commitArgs.append("--author=\(effectiveCommitName) <\(effectiveCommitEmail)>")
         commitArgs.append("-m")
         commitArgs.append(message)
         let res = runGit(commitArgs)
@@ -171,8 +212,8 @@ public final class HubManager: @unchecked Sendable {
         process.executableURL = URL(fileURLWithPath: "/usr/bin/git")
         process.arguments = [
             "-c", "credential.helper=",
-            "-c", "user.name=\(Self.botName)",
-            "-c", "user.email=\(Self.botEmail)",
+            "-c", "user.name=\(effectiveCommitName)",
+            "-c", "user.email=\(effectiveCommitEmail)",
             "-C", hubURL.path
         ] + args
         var env = ProcessInfo.processInfo.environment
