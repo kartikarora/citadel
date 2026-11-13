@@ -45,10 +45,9 @@ public final class RollbackEngine: @unchecked Sendable {
             for portal in portals {
                 allTargetDirs.append(portal.projectPath.appendingPathComponent(".gemini/skills"))
                 allTargetDirs.append(portal.projectPath.appendingPathComponent(".claude/skills"))
-                for relativeSkillsDir in AgentRegistry.shared.allProjectSkillDirs where relativeSkillsDir != ".gemini/skills" && relativeSkillsDir != ".claude/skills" {
-                    let dir = portal.projectPath.appendingPathComponent(relativeSkillsDir)
-                    if fileManager.fileExists(atPath: dir.path) {
-                        allTargetDirs.append(dir)
+                for detected in AgentRegistry.shared.detectedProjectSkillDirs(in: portal.projectPath, fileManager: fileManager) {
+                    if !allTargetDirs.contains(detected.skillsDir) {
+                        allTargetDirs.append(detected.skillsDir)
                     }
                 }
             }

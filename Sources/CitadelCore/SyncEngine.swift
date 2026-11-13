@@ -110,15 +110,12 @@ public final class SyncEngine: @unchecked Sendable {
             syncedDirs.insert(".claude/skills")
         }
 
-        // Sync any existing project-level agent directories (e.g. .matilda, .agents, .cursor)
-        for relativeSkillsDir in AgentRegistry.shared.allProjectSkillDirs where !syncedDirs.contains(relativeSkillsDir) {
-            let folderName = relativeSkillsDir.split(separator: "/").first.map(String.init) ?? relativeSkillsDir
-            let agentRoot = portal.projectPath.appendingPathComponent(folderName)
-            if fileManager.fileExists(atPath: agentRoot.path) {
-                let targetDir = portal.projectPath.appendingPathComponent(relativeSkillsDir)
-                syncSkillLinks(into: targetDir, label: "\(portal.projectPath.lastPathComponent)/\(folderName)", selectedSkills: selectedSkills, createdLinks: &createdLinks)
-                syncedDirs.insert(relativeSkillsDir)
-            }
+        // Sync any existing project-level agent directories and suffixed profiles (e.g. .matilda, .claude-bilue, .agents)
+        for detected in AgentRegistry.shared.detectedProjectSkillDirs(in: portal.projectPath, fileManager: fileManager) {
+            let relativePath = detected.skillsDir.path.replacingOccurrences(of: portal.projectPath.path + "/", with: "")
+            guard !syncedDirs.contains(relativePath) else { continue }
+            syncSkillLinks(into: detected.skillsDir, label: "\(portal.projectPath.lastPathComponent)/\(detected.label)", selectedSkills: selectedSkills, createdLinks: &createdLinks)
+            syncedDirs.insert(relativePath)
         }
         
         // In-repo MCP configuration (.mcp.json or similar)

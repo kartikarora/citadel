@@ -60,10 +60,14 @@ jobs:
       - name: Update Homebrew Tap
         if: startsWith(github.ref, 'refs/tags/')
         env:
-          GITHUB_TOKEN: ${{ secrets.TAP_GITHUB_TOKEN || secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.TAP_GITHUB_TOKEN }}
         run: |
-          VERSION="${{ github.ref_name }}"
-          VERSION="${VERSION#v}"
+          if [[ -z "${GITHUB_TOKEN:-}" ]]; then
+            echo "::error::TAP_GITHUB_TOKEN secret is not set. Add a PAT with write access to kartikarora/homebrew-tap."
+            exit 1
+          fi
+          TAG_NAME="${{ github.ref_name }}"
+          VERSION="${TAG_NAME#v}"
           DMG_FILE=$(ls dist/Citadel-*.dmg | head -n 1)
           TAR_FILE=$(ls dist/citadel-*.tar.gz | head -n 1)
-          ./scripts/update_homebrew_tap.sh "$VERSION" "$DMG_FILE" "$TAR_FILE" "kartikarora/homebrew-tap" || echo "Warning: Homebrew tap update skipped (check token permissions or repo existence)"
+          ./scripts/update_homebrew_tap.sh "$VERSION" "$DMG_FILE" "$TAR_FILE" "kartikarora/homebrew-tap" "$TAG_NAME"

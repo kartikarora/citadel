@@ -30,6 +30,15 @@ public struct AgentConfig: Identifiable, Sendable {
                 return nil
             }
         }
+
+        func defaultHomeURL(home: URL) -> URL? {
+            switch self {
+            case .home(let subpath), .envOrHome(_, let subpath):
+                return home.appendingPathComponent(subpath)
+            case .xdgConfig:
+                return nil
+            }
+        }
     }
     
     public let id: String
@@ -173,36 +182,63 @@ public struct AgentRegistry: Sendable {
         ]
     }
     
-    /// Unique global detection/root directories across all known agents.
+    /// Unique global detection/root directories across all known agents,
+    /// including suffixed profile directories (e.g. `~/.claude-bilue`, `~/.claude-qantas`).
     public func allGlobalRootDirs(
         home: URL = UniversalPaths.shared.home,
         xdgConfig: URL = UniversalPaths.shared.xdgConfigRoot,
-        env: [String: String] = ProcessInfo.processInfo.environment
+        env: [String: String] = ProcessInfo.processInfo.environment,
+        fileManager: FileManager = .default
     ) -> [URL] {
         var seen = Set<String>()
         var result: [URL] = []
+        var dirCache: [String: [URL]] = [:]
         for agent in agents {
-            for dir in agent.detectDirs(home: home, xdgConfig: xdgConfig, env: env) {
-                if seen.insert(dir.path).inserted {
-                    result.append(dir)
+            for base in agent.detectBases {
+                let resolved = base.resolve(home: home, xdgConfig: xdgConfig, env: env)
+                if seen.insert(resolved.path).inserted {
+                    result.append(resolved)
+                }
+                for profileRoot in profileDirectories(matching: resolved, fileManager: fileManager, cache: &dirCache) {
+                    if seen.insert(profileRoot.path).inserted {
+                        result.append(profileRoot)
+                    }
+                }
+                if let fallback = base.defaultHomeURL(home: home), fallback.path != resolved.path {
+                    if fileManager.fileExists(atPath: fallback.path), seen.insert(fallback.path).inserted {
+                        result.append(fallback)
+                    }
+                    for profileRoot in profileDirectories(matching: fallback, fileManager: fileManager, cache: &dirCache) {
+                        if seen.insert(profileRoot.path).inserted {
+                            result.append(profileRoot)
+                        }
+                    }
                 }
             }
         }
         return result
     }
     
-    /// Unique global skills directories across all known agents.
+    /// Unique global skills directories across all known agents,
+    /// including suffixed profile directories (e.g. `~/.claude-bilue/skills`).
     public func allGlobalSkillsDirs(
         home: URL = UniversalPaths.shared.home,
         xdgConfig: URL = UniversalPaths.shared.xdgConfigRoot,
-        env: [String: String] = ProcessInfo.processInfo.environment
+        env: [String: String] = ProcessInfo.processInfo.environment,
+        fileManager: FileManager = .default
     ) -> [URL] {
         var seen = Set<String>()
         var result: [URL] = []
+        var dirCache: [String: [URL]] = [:]
         for agent in agents {
             if let dir = agent.globalSkillsDir(home: home, xdgConfig: xdgConfig, env: env),
                seen.insert(dir.path).inserted {
                 result.append(dir)
+            }
+            for profile in profileSkillTargets(for: agent, home: home, xdgConfig: xdgConfig, env: env, fileManager: fileManager, cache: &dirCache) {
+                if seen.insert(profile.path).inserted {
+                    result.append(profile)
+                }
             }
         }
         return result
@@ -246,26 +282,26 @@ public struct AgentRegistry: Sendable {
         if p.contains("/plugins/") { return "plugin" }
         if p.contains("/builtin/") { return "builtin" }
         
-        // Match against known agent global detectDirs or project config folder segments
+        // Match against known agent global detectDirs or project config folder segments (including suffixed profiles like .claude-bilue)
         for agent in agents {
             for dir in agent.detectDirs(home: home, xdgConfig: xdgConfig, env: env) {
-                if p == dir.path || p.hasPrefix(dir.path + "/") {
+                if p == dir.path || p.hasPrefix(dir.path + "/") || p.hasPrefix(dir.path + "-") {
                     return agent.sourceKind
                 }
             }
             if let dotBase = agent.globalSkillsBase?.relativeDotPath, dotBase != ".agents",
-               p.contains("/\(dotBase)/") {
+               p.contains("/\(dotBase)/") || p.contains("/\(dotBase)-") {
                 return agent.sourceKind
             }
             for base in agent.detectBases {
                 if let dotBase = base.relativeDotPath, dotBase != ".agents",
-                   p.contains("/\(dotBase)/") {
+                   p.contains("/\(dotBase)/") || p.contains("/\(dotBase)-") {
                     return agent.sourceKind
                 }
             }
             if let topFolder = agent.skillsDir.split(separator: "/").first, topFolder.hasPrefix("."),
                topFolder != ".agents",
-               p.contains("/\(topFolder)/") {
+               p.contains("/\(topFolder)/") || p.contains("/\(topFolder)-") {
                 return agent.sourceKind
             }
         }
@@ -277,7 +313,8 @@ public struct AgentRegistry: Sendable {
         return "custom"
     }
     
-    /// Returns deduplicated `(agent, globalSkillsDir)` pairs for all agents currently detected on disk.
+    /// Returns deduplicated `(agent, globalSkillsDir)` pairs for all agents currently detected on disk,
+    /// including suffixed profile directories (e.g. `~/.claude-bilue`, `~/.claude-qantas`).
     public func detectedGlobalSyncTargets(
         home: URL = UniversalPaths.shared.home,
         xdgConfig: URL = UniversalPaths.shared.xdgConfigRoot,
@@ -286,19 +323,129 @@ public struct AgentRegistry: Sendable {
     ) -> [(agent: AgentConfig, skillsDir: URL)] {
         var seenSkillsDirs = Set<String>()
         var targets: [(agent: AgentConfig, skillsDir: URL)] = []
+        var dirCache: [String: [URL]] = [:]
         
         for agent in agents {
-            guard let skillsDir = agent.globalSkillsDir(home: home, xdgConfig: xdgConfig, env: env) else {
-                continue
+            if let skillsDir = agent.globalSkillsDir(home: home, xdgConfig: xdgConfig, env: env) {
+                let isInstalled = agent.detectDirs(home: home, xdgConfig: xdgConfig, env: env)
+                    .contains { fileManager.fileExists(atPath: $0.path) }
+                if isInstalled, seenSkillsDirs.insert(skillsDir.path).inserted {
+                    targets.append((agent, skillsDir))
+                }
             }
-            let isInstalled = agent.detectDirs(home: home, xdgConfig: xdgConfig, env: env)
-                .contains { fileManager.fileExists(atPath: $0.path) }
-            guard isInstalled else { continue }
             
-            if seenSkillsDirs.insert(skillsDir.path).inserted {
-                targets.append((agent, skillsDir))
+            for profileSkillsDir in profileSkillTargets(for: agent, home: home, xdgConfig: xdgConfig, env: env, fileManager: fileManager, cache: &dirCache) {
+                if seenSkillsDirs.insert(profileSkillsDir.path).inserted {
+                    targets.append((agent, profileSkillsDir))
+                }
             }
         }
         return targets
+    }
+
+    /// Returns existing project-level `(folderLabel, skillsDir)` pairs inside `projectPath`,
+    /// covering both standard agent directories (e.g. `.matilda`, `.claude`) and suffixed profiles (e.g. `.claude-bilue`).
+    public func detectedProjectSkillDirs(
+        in projectPath: URL,
+        fileManager: FileManager = .default
+    ) -> [(label: String, skillsDir: URL)] {
+        var seen = Set<String>()
+        var results: [(label: String, skillsDir: URL)] = []
+
+        for relativeSkillsDir in allProjectSkillDirs {
+            let folderName = relativeSkillsDir.split(separator: "/").first.map(String.init) ?? relativeSkillsDir
+            let agentRoot = projectPath.appendingPathComponent(folderName)
+            if fileManager.fileExists(atPath: agentRoot.path) {
+                let targetDir = projectPath.appendingPathComponent(relativeSkillsDir)
+                if seen.insert(targetDir.path).inserted {
+                    results.append((folderName, targetDir))
+                }
+            }
+        }
+
+        if let entries = try? fileManager.contentsOfDirectory(
+            at: projectPath,
+            includingPropertiesForKeys: [.isDirectoryKey],
+            options: []
+        ) {
+            let knownPrefixes = allProjectConfigFolderNames.filter { $0 != ".agents" }
+            for entry in entries {
+                let isDir = (try? entry.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) ?? false
+                guard isDir else { continue }
+                let name = entry.lastPathComponent
+                guard knownPrefixes.contains(where: { name.hasPrefix("\($0)-") }) else { continue }
+                let targetDir = entry.appendingPathComponent("skills")
+                if seen.insert(targetDir.path).inserted {
+                    results.append((name, targetDir))
+                }
+            }
+        }
+
+        return results
+    }
+
+    // MARK: - Profile Directory Helpers
+
+    private func profileDirectories(
+        matching baseDir: URL,
+        fileManager: FileManager,
+        cache: inout [String: [URL]]
+    ) -> [URL] {
+        let baseName = baseDir.lastPathComponent
+        guard baseName != ".agents", !baseName.isEmpty else { return [] }
+        let parent = baseDir.deletingLastPathComponent()
+        let children: [URL]
+        if let cached = cache[parent.path] {
+            children = cached
+        } else {
+            let names = (try? fileManager.contentsOfDirectory(atPath: parent.path)) ?? []
+            let listed = names.map { parent.appendingPathComponent($0) }
+            cache[parent.path] = listed
+            children = listed
+        }
+
+        let prefix = "\(baseName)-"
+        return children.filter { child in
+            let name = child.lastPathComponent
+            guard name.hasPrefix(prefix), name.count > prefix.count else { return false }
+            var isDir: ObjCBool = false
+            return fileManager.fileExists(atPath: child.path, isDirectory: &isDir) && isDir.boolValue
+        }
+    }
+
+    private func profileSkillTargets(
+        for agent: AgentConfig,
+        home: URL,
+        xdgConfig: URL,
+        env: [String: String],
+        fileManager: FileManager,
+        cache: inout [String: [URL]]
+    ) -> [URL] {
+        guard let canonicalSkillsDir = agent.globalSkillsDir(home: home, xdgConfig: xdgConfig, env: env) else {
+            return []
+        }
+        var results: [URL] = []
+        for base in agent.detectBases {
+            let resolved = base.resolve(home: home, xdgConfig: xdgConfig, env: env)
+            var candidateBases = [resolved]
+            if let fallback = base.defaultHomeURL(home: home), fallback.path != resolved.path {
+                candidateBases.append(fallback)
+                if fileManager.fileExists(atPath: fallback.path) {
+                    results.append(fallback.appendingPathComponent("skills"))
+                }
+            }
+            for detectDir in candidateBases {
+                let skillsSubpath: String
+                if canonicalSkillsDir.path.hasPrefix(detectDir.path + "/") {
+                    skillsSubpath = String(canonicalSkillsDir.path.dropFirst(detectDir.path.count + 1))
+                } else {
+                    skillsSubpath = "skills"
+                }
+                for profileRoot in profileDirectories(matching: detectDir, fileManager: fileManager, cache: &cache) {
+                    results.append(profileRoot.appendingPathComponent(skillsSubpath))
+                }
+            }
+        }
+        return results
     }
 }

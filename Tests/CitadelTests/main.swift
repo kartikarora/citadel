@@ -470,7 +470,7 @@ func runAllCitadelTests() async throws {
     
     // Verify .matilda global detection & discovery with isolated temp home
     let suite13FM = FileManager.default
-    let suite13Root = suite13FM.temporaryDirectory.appendingPathComponent("citadel-suite13-\(UUID().uuidString)")
+    let suite13Root = suite13FM.temporaryDirectory.resolvingSymlinksInPath().appendingPathComponent("citadel-suite13-\(UUID().uuidString)")
     defer { try? suite13FM.removeItem(at: suite13Root) }
     
     let tempHome = suite13Root.appendingPathComponent("home")
@@ -508,6 +508,38 @@ func runAllCitadelTests() async throws {
     let syncEngine = SyncEngine()
     _ = syncEngine.syncProjectPortal(matildaTestPortal)
     expect(!suite13FM.fileExists(atPath: staleMatildaLink.path), "syncProjectPortal prunes disabled skills inside .matilda/skills")
+    
+    // Verify suffixed profile directories (.claude-bilue, .claude-qantas, .matilda-work) across all agents
+    let bilueRoot = tempHome.appendingPathComponent(".claude-bilue")
+    let qantasRoot = tempHome.appendingPathComponent(".claude-qantas")
+    let matildaWorkRoot = tempHome.appendingPathComponent(".matilda-work")
+    let bilueSkillDir = bilueRoot.appendingPathComponent("skills/bilue-skill")
+    let qantasSkillDir = qantasRoot.appendingPathComponent("skills/qantas-skill")
+    try suite13FM.createDirectory(at: bilueSkillDir, withIntermediateDirectories: true)
+    try suite13FM.createDirectory(at: qantasSkillDir, withIntermediateDirectories: true)
+    try suite13FM.createDirectory(at: matildaWorkRoot, withIntermediateDirectories: true)
+    try "# Bilue Skill\n".write(to: bilueSkillDir.appendingPathComponent("SKILL.md"), atomically: true, encoding: .utf8)
+    try "# Qantas Skill\n".write(to: qantasSkillDir.appendingPathComponent("SKILL.md"), atomically: true, encoding: .utf8)
+    
+    let profileGlobalRoots = registry.allGlobalRootDirs(home: tempHome, xdgConfig: tempXdg, env: [:], fileManager: suite13FM)
+    expect(profileGlobalRoots.contains { $0.path == bilueRoot.path }, "allGlobalRootDirs discovers ~/.claude-bilue")
+    expect(profileGlobalRoots.contains { $0.path == qantasRoot.path }, "allGlobalRootDirs discovers ~/.claude-qantas")
+    expect(profileGlobalRoots.contains { $0.path == matildaWorkRoot.path }, "allGlobalRootDirs discovers ~/.matilda-work")
+    
+    let profileSyncTargets = registry.detectedGlobalSyncTargets(home: tempHome, xdgConfig: tempXdg, env: [:], fileManager: suite13FM)
+    expect(profileSyncTargets.contains { $0.agent.id == "claude-code" && $0.skillsDir.path == bilueRoot.appendingPathComponent("skills").path }, "detectedGlobalSyncTargets includes ~/.claude-bilue/skills")
+    expect(profileSyncTargets.contains { $0.agent.id == "claude-code" && $0.skillsDir.path == qantasRoot.appendingPathComponent("skills").path }, "detectedGlobalSyncTargets includes ~/.claude-qantas/skills")
+    expect(profileSyncTargets.contains { $0.agent.id == "matilda" && $0.skillsDir.path == matildaWorkRoot.appendingPathComponent("skills").path }, "detectedGlobalSyncTargets includes ~/.matilda-work/skills")
+    
+    let discoveredProfiles = discoveryEngine.discoverSkills(in: [bilueRoot, qantasRoot])
+    expect(discoveredProfiles.count == 2, "Discovers skills inside .claude-bilue and .claude-qantas")
+    expect(discoveredProfiles.allSatisfy { $0.sourceKind == "claude" }, "Tags .claude-bilue and .claude-qantas skills with sourceKind 'claude'")
+    
+    let staleBilueRepoLink = tempPortalRepo.appendingPathComponent(".claude-bilue/skills/stale-skill")
+    try suite13FM.createDirectory(at: tempPortalRepo.appendingPathComponent(".claude-bilue/skills"), withIntermediateDirectories: true)
+    try "# Stale\n".write(to: staleBilueRepoLink, atomically: true, encoding: .utf8)
+    _ = syncEngine.syncProjectPortal(matildaTestPortal)
+    expect(!suite13FM.fileExists(atPath: staleBilueRepoLink.path), "syncProjectPortal also syncs/prunes suffixed project dirs like .claude-bilue/skills")
     
     print("\n==================================================")
     print("🎉 ALL \(passedCount)/\(totalCount) UNIT TESTS PASSED SUCCESSFULLY!")

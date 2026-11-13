@@ -4,7 +4,7 @@ class Citadel < Formula
   version "__VERSION__"
 
   if OS.mac? && Hardware::CPU.arm?
-    url "https://github.com/kartikarora/citadel/releases/download/__VERSION__/citadel-__VERSION__-macOS-arm64.tar.gz"
+    url "https://github.com/kartikarora/citadel/releases/download/__TAG__/citadel-__VERSION__-macOS-arm64.tar.gz"
     sha256 "__TAR_SHA256__"
   end
 

@@ -2,12 +2,13 @@
 set -euo pipefail
 
 # update_homebrew_tap.sh
-# Usage: ./scripts/update_homebrew_tap.sh <VERSION> <DMG_PATH> <TAR_PATH> [TAP_REPO]
+# Usage: ./scripts/update_homebrew_tap.sh <VERSION> <DMG_PATH> <TAR_PATH> [TAP_REPO] [TAG_NAME]
 
 VERSION="${1:-}"
 DMG_PATH="${2:-}"
 TAR_PATH="${3:-}"
 TAP_REPO="${4:-kartikarora/homebrew-tap}"
+TAG_NAME="${5:-$VERSION}"
 
 if [[ -z "$VERSION" || -z "$DMG_PATH" || -z "$TAR_PATH" ]]; then
   echo "Usage: $0 <VERSION> <DMG_PATH> <TAR_PATH> [TAP_REPO]"
@@ -48,11 +49,13 @@ if git clone "https://x-access-token:${GITHUB_TOKEN}@github.com/${TAP_REPO}.git"
 
   # Generate Formula
   sed -e "s/__VERSION__/$VERSION/g" \
+      -e "s/__TAG__/$TAG_NAME/g" \
       -e "s/__TAR_SHA256__/$TAR_SHA256/g" \
       "$TEMPLATE_DIR/Formula/citadel.rb.template" > "$TEMP_DIR/tap/Formula/citadel.rb"
 
   # Generate Cask
   sed -e "s/__VERSION__/$VERSION/g" \
+      -e "s/__TAG__/$TAG_NAME/g" \
       -e "s/__DMG_SHA256__/$DMG_SHA256/g" \
       "$TEMPLATE_DIR/Casks/citadel.rb.template" > "$TEMP_DIR/tap/Casks/citadel.rb"
 
@@ -73,6 +76,6 @@ if git clone "https://x-access-token:${GITHUB_TOKEN}@github.com/${TAP_REPO}.git"
     fi
   fi
 else
-  echo "Notice: Could not clone $TAP_REPO (repository may not exist or access token lacks permission)."
-  echo "Generated local formula and cask are stored in packaging/homebrew/ for manual import if needed."
+  echo "Error: Could not clone $TAP_REPO (check TAP_GITHUB_TOKEN permissions or repository existence)."
+  exit 1
 fi
