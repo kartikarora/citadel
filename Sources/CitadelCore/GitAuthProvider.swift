@@ -12,6 +12,8 @@ public struct DeviceCodeResponse: Sendable {
 public final class GitAuthProvider: @unchecked Sendable {
     public static let shared = GitAuthProvider()
     private let keychainService = CitadelConstants.Keychain.authService
+    /// Public OAuth Client ID of GitHub CLI (`gh`). Sharing it would overwrite/invalidate `gh auth` grants on GitHub.
+    private static let ghCLIClientID = "178c6fc778ccc68e1d6a"
     
     /// User configured GitHub App slug/name or Client ID
     public var customGitHubAppSlug: String? = ProcessInfo.processInfo.environment["CITADEL_GITHUB_APP_NAME"]
@@ -122,6 +124,16 @@ public final class GitAuthProvider: @unchecked Sendable {
     /// Requests a Device Code session from GitHub or GitLab
     public func startDeviceCodeFlow(provider: GitProvider) async throws -> DeviceCodeResponse {
         if provider == .github {
+            let clientID = activeGitHubClientID.trimmingCharacters(in: .whitespacesAndNewlines)
+            if clientID.isEmpty || clientID == Self.ghCLIClientID {
+                throw NSError(
+                    domain: "Citadel",
+                    code: 400,
+                    userInfo: [
+                        NSLocalizedDescriptionKey: "Citadel requires its own dedicated GitHub OAuth Client ID (separate from GitHub CLI's client ID) so signing in does not invalidate your `gh` CLI session. Set CITADEL_GITHUB_CLIENT_ID or sign in with a Personal Access Token."
+                    ]
+                )
+            }
             let url = URL(string: CitadelConstants.OAuth.githubDeviceCodeURL)!
             var req = URLRequest(url: url)
             req.httpMethod = "POST"
@@ -192,7 +204,8 @@ public final class GitAuthProvider: @unchecked Sendable {
                 if let http = resp as? HTTPURLResponse, http.statusCode == 200,
                    let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
                     if let token = json["access_token"] as? String {
-                        _ = saveToken(token, for: .github)
+                        let username = await fetchUsername(for: .github, token: token)
+                        _ = saveToken(token, for: .github, username: username)
                         return token
                     }
                     if let err = json["error"] as? String {
@@ -247,50 +260,107 @@ public final class GitAuthProvider: @unchecked Sendable {
         throw NSError(domain: "Citadel", code: 408, userInfo: [NSLocalizedDescriptionKey: "OAuth authorization timed out"])
     }
     
-    // MARK: - Keychain Operations
-    
-    public func saveToken(_ token: String, for provider: GitProvider) -> Bool {
-        let account = provider.rawValue
-        guard let data = token.data(using: .utf8) else { return false }
-        
-        let query: [String: Any] = [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: keychainService,
-            kSecAttrAccount as String: account
-        ]
-        SecItemDelete(query as CFDictionary)
-        
-        var attributes = query
-        attributes[kSecValueData as String] = data
-        let status = SecItemAdd(attributes as CFDictionary, nil)
-        return status == errSecSuccess
+    // MARK: - Keychain Operations (Per-Account Isolated)
+
+    private func activeAccountKey(for provider: GitProvider) -> String {
+        "\(provider.rawValue).active"
     }
-    
-    public func getToken(for provider: GitProvider) -> String? {
-        let query: [String: Any] = [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: keychainService,
-            kSecAttrAccount as String: provider.rawValue,
-            kSecReturnData as String: true,
-            kSecMatchLimit as String: kSecMatchLimitOne
-        ]
-        var item: CFTypeRef?
-        let status = SecItemCopyMatching(query as CFDictionary, &item)
-        guard status == errSecSuccess,
-              let data = item as? Data,
-              let token = String(data: data, encoding: .utf8) else {
-            return nil
+
+    private func scopedAccountKey(for provider: GitProvider, username: String) -> String {
+        "\(provider.rawValue):\(username)"
+    }
+
+    public func saveToken(_ token: String, for provider: GitProvider, username: String? = nil) -> Bool {
+        if let username = username, !username.isEmpty {
+            let scopedSaved = CitadelUtils.saveKeychainSecret(
+                service: keychainService,
+                account: scopedAccountKey(for: provider, username: username),
+                value: token
+            )
+            let activeSaved = CitadelUtils.saveKeychainSecret(
+                service: keychainService,
+                account: activeAccountKey(for: provider),
+                value: username
+            )
+            return scopedSaved && activeSaved
         }
-        return token
+        return CitadelUtils.saveKeychainSecret(
+            service: keychainService,
+            account: provider.rawValue,
+            value: token
+        )
     }
-    
-    public func deleteToken(for provider: GitProvider) {
+
+    public func getToken(for provider: GitProvider) -> String? {
+        if let activeUsername = CitadelUtils.loadKeychainSecret(service: keychainService, account: activeAccountKey(for: provider)),
+           !activeUsername.isEmpty,
+           let scopedToken = CitadelUtils.loadKeychainSecret(service: keychainService, account: scopedAccountKey(for: provider, username: activeUsername)) {
+            return scopedToken
+        }
+        // Fallback to legacy single-account slot
+        return CitadelUtils.loadKeychainSecret(service: keychainService, account: provider.rawValue)
+    }
+
+    public func listSavedAccounts(for provider: GitProvider) -> [String] {
+        let prefix = "\(provider.rawValue):"
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: keychainService,
-            kSecAttrAccount as String: provider.rawValue
+            kSecReturnAttributes as String: true,
+            kSecMatchLimit as String: kSecMatchLimitAll
         ]
-        SecItemDelete(query as CFDictionary)
+        var result: CFTypeRef?
+        guard SecItemCopyMatching(query as CFDictionary, &result) == errSecSuccess,
+              let items = result as? [[String: Any]] else {
+            return []
+        }
+        return items.compactMap { item in
+            guard let account = item[kSecAttrAccount as String] as? String,
+                  account.hasPrefix(prefix) else {
+                return nil
+            }
+            return String(account.dropFirst(prefix.count))
+        }.sorted()
+    }
+
+    public func switchAccount(_ username: String, for provider: GitProvider) -> Bool {
+        guard CitadelUtils.loadKeychainSecret(service: keychainService, account: scopedAccountKey(for: provider, username: username)) != nil else {
+            return false
+        }
+        return CitadelUtils.saveKeychainSecret(service: keychainService, account: activeAccountKey(for: provider), value: username)
+    }
+
+    public func deleteToken(for provider: GitProvider) {
+        if let activeUsername = CitadelUtils.loadKeychainSecret(service: keychainService, account: activeAccountKey(for: provider)),
+           !activeUsername.isEmpty {
+            CitadelUtils.deleteKeychainSecret(service: keychainService, account: scopedAccountKey(for: provider, username: activeUsername))
+            CitadelUtils.deleteKeychainSecret(service: keychainService, account: activeAccountKey(for: provider))
+        }
+        CitadelUtils.deleteKeychainSecret(service: keychainService, account: provider.rawValue)
+    }
+
+    private func fetchUsername(for provider: GitProvider, token: String) async -> String? {
+        if provider == .github {
+            guard let url = URL(string: CitadelConstants.OAuth.githubUserAPI) else { return nil }
+            var req = URLRequest(url: url)
+            req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+            req.setValue("application/vnd.github.v3+json", forHTTPHeaderField: "Accept")
+            if let (data, resp) = try? await URLSession.shared.data(for: req),
+               (resp as? HTTPURLResponse)?.statusCode == 200,
+               let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
+                return json["login"] as? String
+            }
+        } else {
+            guard let url = URL(string: CitadelConstants.OAuth.gitlabUserAPI) else { return nil }
+            var req = URLRequest(url: url)
+            req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+            if let (data, resp) = try? await URLSession.shared.data(for: req),
+               (resp as? HTTPURLResponse)?.statusCode == 200,
+               let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
+                return json["username"] as? String
+            }
+        }
+        return nil
     }
     
     public func getAuthenticatedUser(for provider: GitProvider) async -> AuthAccount? {

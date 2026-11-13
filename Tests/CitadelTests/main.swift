@@ -55,6 +55,17 @@ func runAllCitadelTests() async throws {
     customConfig.githubClientID = "custom-gh-app"
     expect(customConfig.githubClientID == "custom-gh-app", "AuthConfig accepts custom user-defined client IDs")
     
+    let prevClientID = GitAuthProvider.shared.customGitHubClientID
+    GitAuthProvider.shared.customGitHubClientID = "178c6fc778ccc68e1d6a"
+    var rejectedGHCLIClientID = false
+    do {
+        _ = try await GitAuthProvider.shared.startDeviceCodeFlow(provider: .github)
+    } catch {
+        rejectedGHCLIClientID = error.localizedDescription.contains("gh")
+    }
+    GitAuthProvider.shared.customGitHubClientID = prevClientID
+    expect(rejectedGHCLIClientID, "GitAuthProvider refuses gh CLI shared client ID to avoid invalidating gh auth")
+    
     // Suite 3: HubManager & Commit Signing
     print("\n[Suite 3/6: HubManager & Commit Signing]")
     let tempHub = FileManager.default.temporaryDirectory.appendingPathComponent("citadel_test_hub_\(UUID().uuidString)")

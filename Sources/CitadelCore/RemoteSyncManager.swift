@@ -173,7 +173,11 @@ public final class RemoteSyncManager: @unchecked Sendable {
     private func runGit(_ args: [String]) -> (exitCode: Int32, output: String) {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/usr/bin/git")
-        process.arguments = ["-C", hub.hubURL.path] + args
+        // Isolate Citadel's git operations from `gh auth git-credential` and osxkeychain
+        process.arguments = ["-c", "credential.helper=", "-C", hub.hubURL.path] + args
+        var env = ProcessInfo.processInfo.environment
+        env["GIT_TERMINAL_PROMPT"] = "0"
+        process.environment = env
         let pipe = Pipe()
         process.standardOutput = pipe
         process.standardError = pipe
