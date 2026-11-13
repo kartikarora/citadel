@@ -412,7 +412,7 @@ public final class GitAuthProvider: @unchecked Sendable {
             
             if let (_, resp) = try? await URLSession.shared.data(for: checkReq),
                let http = resp as? HTTPURLResponse, http.statusCode == 200 {
-                let clone = "https://\(user.username):\(token)@github.com/\(user.username)/\(repoName).git"
+                let clone = "https://github.com/\(user.username)/\(repoName).git"
                 return (true, clone)
             }
         } else {
@@ -422,7 +422,7 @@ public final class GitAuthProvider: @unchecked Sendable {
             
             if let (_, resp) = try? await URLSession.shared.data(for: checkReq),
                let http = resp as? HTTPURLResponse, http.statusCode == 200 {
-                let clone = "https://oauth2:\(token)@gitlab.com/\(user.username)/\(repoName).git"
+                let clone = "https://gitlab.com/\(user.username)/\(repoName).git"
                 return (true, clone)
             }
         }
@@ -494,73 +494,39 @@ public final class GitAuthProvider: @unchecked Sendable {
         }
     }
     
-    /// Searches across the user's remote repositories to locate any repository bearing the Citadel sync marker
-    public func discoverSyncRepository(provider: GitProvider, preferredRepoName: String = "citadel-sync") async -> DiscoveredSyncRepo? {
-        guard let token = getToken(for: provider),
-              let user = await getAuthenticatedUser(for: provider) else {
+    /// Checks the dedicated `citadel-sync` repository for the Citadel sync marker.
+    public func discoverSyncRepository(provider: GitProvider, preferredRepoName: String = CitadelConstants.Git.defaultRepoName) async -> DiscoveredSyncRepo? {
+        guard let user = await getAuthenticatedUser(for: provider) else {
             return nil
         }
-        
-        // 1. Fast path: check the preferred repo name first
-        if let marker = await checkRemoteSyncMarker(provider: provider, repoFullName: "\(user.username)/\(preferredRepoName)") {
+
+        let repoName = CitadelConstants.Git.defaultRepoName
+        if let marker = await checkRemoteSyncMarker(provider: provider, repoFullName: "\(user.username)/\(repoName)") {
             let clone = provider == .github
-                ? "https://\(user.username):\(token)@github.com/\(user.username)/\(preferredRepoName).git"
-                : "https://oauth2:\(token)@gitlab.com/\(user.username)/\(preferredRepoName).git"
+                ? "https://github.com/\(user.username)/\(repoName).git"
+                : "https://gitlab.com/\(user.username)/\(repoName).git"
             return DiscoveredSyncRepo(
-                repoName: preferredRepoName,
-                fullName: "\(user.username)/\(preferredRepoName)",
+                repoName: repoName,
+                fullName: "\(user.username)/\(repoName)",
                 cloneURL: clone,
                 provider: provider,
                 marker: marker
             )
         }
-        
-        // 2. GitHub Code Search API fast path (finds the marker file anywhere under user's repos in 1 request)
-        if provider == .github {
-            let query = "filename:\(CitadelConstants.Paths.syncMarkerFile)+user:\(user.username)"
-            if let searchURL = URL(string: "https://api.github.com/search/code?q=\(query)") {
-                var searchReq = URLRequest(url: searchURL)
-                searchReq.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
-                searchReq.setValue("application/vnd.github.v3+json", forHTTPHeaderField: "Accept")
-                
-                if let (data, resp) = try? await URLSession.shared.data(for: searchReq),
-                   let http = resp as? HTTPURLResponse, http.statusCode == 200,
-                   let searchJson = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-                   let items = searchJson["items"] as? [[String: Any]],
-                   let firstItem = items.first,
-                   let repoObj = firstItem["repository"] as? [String: Any],
-                   let repoName = repoObj["name"] as? String,
-                   let fullName = repoObj["full_name"] as? String {
-                    if let marker = await checkRemoteSyncMarker(provider: .github, repoFullName: fullName) {
-                        let clone = "https://\(user.username):\(token)@github.com/\(fullName).git"
-                        return DiscoveredSyncRepo(
-                            repoName: repoName,
-                            fullName: fullName,
-                            cloneURL: clone,
-                            provider: .github,
-                            marker: marker
-                        )
-                    }
-                }
-            }
-        }
-        
-        // 3. Fallback: scan user's active repositories for the sync marker
-        let userRepos = await listUserRepositories(provider: provider)
-        for repo in userRepos {
-            if repo.name == preferredRepoName { continue } // already checked in fast path
-            if let marker = await checkRemoteSyncMarker(provider: provider, repoFullName: repo.fullName) {
-                return DiscoveredSyncRepo(
-                    repoName: repo.name,
-                    fullName: repo.fullName,
-                    cloneURL: repo.cloneURL,
-                    provider: provider,
-                    marker: marker
-                )
-            }
-        }
-        
+
         return nil
+    }
+
+    /// Ensures the dedicated private `citadel-sync` repository exists and configures it as the hub remote.
+    @discardableResult
+    public func ensurePrivateSyncRepo(provider: GitProvider) async throws -> String {
+        let repoName = CitadelConstants.Git.defaultRepoName
+        let existing = await checkRepoExists(provider: provider, repoName: repoName)
+        if existing.exists, let cloneURL = existing.cloneURL {
+            _ = RemoteSyncManager.shared.setRemoteURL(cloneURL)
+            return cloneURL
+        }
+        return try await createPrivateRepo(provider: provider, repoName: repoName, isPrivate: true)
     }
     
     // MARK: - List User Repositories
@@ -657,7 +623,7 @@ public final class GitAuthProvider: @unchecked Sendable {
                 throw NSError(domain: "Citadel", code: 500, userInfo: [NSLocalizedDescriptionKey: "GitHub repository creation rejected: \(errMsg)"])
             }
             
-            let clone = "https://\(user.username):\(token)@github.com/\(user.username)/\(repoName).git"
+            let clone = "https://github.com/\(user.username)/\(repoName).git"
             _ = RemoteSyncManager.shared.setRemoteURL(clone)
             return clone
         } else {
@@ -677,7 +643,7 @@ public final class GitAuthProvider: @unchecked Sendable {
                 throw NSError(domain: "Citadel", code: 500, userInfo: [NSLocalizedDescriptionKey: "GitLab repository creation rejected: \(errMsg)"])
             }
             
-            let clone = "https://oauth2:\(token)@gitlab.com/\(user.username)/\(repoName).git"
+            let clone = "https://gitlab.com/\(user.username)/\(repoName).git"
             _ = RemoteSyncManager.shared.setRemoteURL(clone)
             return clone
         }

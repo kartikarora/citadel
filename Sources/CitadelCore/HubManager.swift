@@ -149,13 +149,17 @@ public final class HubManager: @unchecked Sendable {
     }
     
     public func gitPush(remote: String = "origin", branch: String = "main") -> (success: Bool, output: String) {
-        let res = runGit(["push", remote, branch])
-        return (res.exitCode == 0, res.output)
+        let res = RemoteSyncManager.shared.push(remote: remote, branch: branch)
+        return (res.success, res.message)
     }
     
     public func gitPull(remote: String = "origin", branch: String = "main") -> (success: Bool, output: String) {
-        let res = runGit(["pull", "--rebase", remote, branch])
-        return (res.exitCode == 0, res.output)
+        do {
+            let res = try RemoteSyncManager.shared.pull(remote: remote, branch: branch)
+            return (res.success, res.message)
+        } catch {
+            return (false, error.localizedDescription)
+        }
     }
     
     public func gitStatus() -> String {
@@ -165,7 +169,17 @@ public final class HubManager: @unchecked Sendable {
     private func runGit(_ args: [String]) -> (exitCode: Int32, output: String) {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/usr/bin/git")
-        process.arguments = ["-C", hubURL.path] + args
+        process.arguments = [
+            "-c", "credential.helper=",
+            "-c", "user.name=\(Self.botName)",
+            "-c", "user.email=\(Self.botEmail)",
+            "-C", hubURL.path
+        ] + args
+        var env = ProcessInfo.processInfo.environment
+        env["GIT_TERMINAL_PROMPT"] = "0"
+        env["GIT_CONFIG_GLOBAL"] = "/dev/null"
+        env["GIT_CONFIG_NOSYSTEM"] = "1"
+        process.environment = env
         let pipe = Pipe()
         process.standardOutput = pipe
         process.standardError = pipe

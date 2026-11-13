@@ -38,12 +38,14 @@ public final class RemoteSyncManager: @unchecked Sendable {
         if trimmed.isEmpty {
             return removeRemote(remote: remote)
         }
+        // Never persist embedded tokens in ~/.citadel/.git/config
+        let cleanURL = GitAuthProvider.shared.sanitizedRemoteURL(trimmed)
         
         if getRemoteURL(remote: remote) != nil {
-            let res = runGit(["remote", "set-url", remote, trimmed])
+            let res = runGit(["remote", "set-url", remote, cleanURL])
             return (res.exitCode == 0, res.exitCode == 0 ? nil : res.output)
         } else {
-            let res = runGit(["remote", "add", remote, trimmed])
+            let res = runGit(["remote", "add", remote, cleanURL])
             return (res.exitCode == 0, res.exitCode == 0 ? nil : res.output)
         }
     }
@@ -147,21 +149,29 @@ public final class RemoteSyncManager: @unchecked Sendable {
 
     /// Pushes local Citadel hub to remote git
     public func push(remote: String = "origin", branch: String = "main") -> (success: Bool, message: String) {
-        guard getRemoteURL(remote: remote) != nil else {
+        guard let rawRemote = getRemoteURL(remote: remote) else {
             return (false, "No remote Git URL configured. Set one with 'ctdl remote set <url>'")
+        }
+        let cleanRemote = GitAuthProvider.shared.sanitizedRemoteURL(rawRemote)
+        if cleanRemote != rawRemote {
+            _ = setRemoteURL(cleanRemote, remote: remote)
         }
         writeSyncMarker()
         _ = hub.gitCommit(message: "chore(sync): snapshot armory and portal links")
-        let res = runGit(["push", "-u", remote, branch])
+        let res = runGit(["push", "-u", remote, branch], authenticatedRemoteURL: cleanRemote)
         return (res.exitCode == 0, res.output.isEmpty ? "Pushed to \(remote)/\(branch)" : res.output)
     }
     
     /// Pulls remote updates and re-syncs all AI tools
     public func pull(remote: String = "origin", branch: String = "main") throws -> (success: Bool, message: String) {
-        guard getRemoteURL(remote: remote) != nil else {
+        guard let rawRemote = getRemoteURL(remote: remote) else {
             return (false, "No remote Git URL configured. Set one with 'ctdl remote set <url>'")
         }
-        let res = runGit(["pull", "--rebase", remote, branch])
+        let cleanRemote = GitAuthProvider.shared.sanitizedRemoteURL(rawRemote)
+        if cleanRemote != rawRemote {
+            _ = setRemoteURL(cleanRemote, remote: remote)
+        }
+        let res = runGit(["pull", "--rebase", remote, branch], authenticatedRemoteURL: cleanRemote)
         guard res.exitCode == 0 else {
             return (false, "Pull failed: \(res.output)")
         }
@@ -170,13 +180,49 @@ public final class RemoteSyncManager: @unchecked Sendable {
         return (true, "Successfully pulled and re-synchronized multiverse.")
     }
     
-    private func runGit(_ args: [String]) -> (exitCode: Int32, output: String) {
+    private func runGit(_ args: [String], authenticatedRemoteURL: String? = nil) -> (exitCode: Int32, output: String) {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/usr/bin/git")
-        // Isolate Citadel's git operations from `gh auth git-credential` and osxkeychain
-        process.arguments = ["-c", "credential.helper=", "-C", hub.hubURL.path] + args
+        // Isolate Citadel's git operations from global/system gitconfig, `gh auth git-credential`, and osxkeychain
+        process.arguments = [
+            "-c", "credential.helper=",
+            "-c", "user.name=\(HubManager.botName)",
+            "-c", "user.email=\(HubManager.botEmail)",
+            "-C", hub.hubURL.path
+        ] + args
         var env = ProcessInfo.processInfo.environment
         env["GIT_TERMINAL_PROMPT"] = "0"
+        env["GIT_CONFIG_GLOBAL"] = "/dev/null"
+        env["GIT_CONFIG_NOSYSTEM"] = "1"
+
+        var askpassScriptURL: URL?
+        defer {
+            if let script = askpassScriptURL {
+                try? FileManager.default.removeItem(at: script)
+            }
+        }
+
+        if let remoteURL = authenticatedRemoteURL, remoteURL.hasPrefix("https://") {
+            let provider: GitProvider? = remoteURL.contains("gitlab.com") ? .gitlab : (remoteURL.contains("github.com") ? .github : nil)
+            if let provider = provider, let token = GitAuthProvider.shared.getToken(for: provider) {
+                let scriptURL = FileManager.default.temporaryDirectory.appendingPathComponent("citadel-askpass-\(UUID().uuidString).sh")
+                let username = provider == .github ? "x-access-token" : "oauth2"
+                let script = """
+                #!/bin/sh
+                case "$1" in
+                  *Username*) printf '%s\\n' "\(username)" ;;
+                  *) printf '%s\\n' "$CITADEL_GIT_TOKEN" ;;
+                esac
+                """
+                if (try? script.write(to: scriptURL, atomically: true, encoding: .utf8)) != nil {
+                    try? FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: scriptURL.path)
+                    askpassScriptURL = scriptURL
+                    env["GIT_ASKPASS"] = scriptURL.path
+                    env["CITADEL_GIT_TOKEN"] = token
+                }
+            }
+        }
+
         process.environment = env
         let pipe = Pipe()
         process.standardOutput = pipe

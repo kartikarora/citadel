@@ -604,7 +604,6 @@ final class CitadelStore: ObservableObject {
     @Published var remoteStatus: RemoteSyncStatus = RemoteSyncStatus(remoteURL: nil, isConfigured: false, hasUncommittedChanges: false)
     @Published var githubUser: AuthAccount? = nil
     @Published var gitlabUser: AuthAccount? = nil
-    @Published var availableRemoteRepos: [GitAuthProvider.RemoteRepositoryInfo] = []
     @Published var isLoadingRepos: Bool = false
     @Published var selectedRepoFullName: String = ""
     @Published var customRepoInput: String = ""
@@ -982,23 +981,17 @@ final class CitadelStore: ObservableObject {
         }
     }
     
-    func fetchAvailableRepos(for provider: GitProvider) {
+    func connectDedicatedSyncRepository(for provider: GitProvider) {
         isLoadingRepos = true
         Task {
-            let repos = await GitAuthProvider.shared.listUserRepositories(provider: provider)
+            _ = try? await GitAuthProvider.shared.ensurePrivateSyncRepo(provider: provider)
             await MainActor.run {
-                self.availableRemoteRepos = repos
                 self.isLoadingRepos = false
+                self.remoteRepoExists = true
+                self.refresh()
+                self.scanFilesystem()
             }
         }
-    }
-    
-    func selectRemoteRepository(_ repo: GitAuthProvider.RemoteRepositoryInfo) {
-        selectedRepoFullName = repo.fullName
-        _ = RemoteSyncManager.shared.setRemoteURL(repo.cloneURL)
-        remoteRepoExists = true
-        refresh()
-        scanFilesystem()
     }
     
     func setCustomRemoteRepository(_ customURL: String) {
@@ -1041,11 +1034,12 @@ final class CitadelStore: ObservableObject {
                 // Poll for token completion
                 _ = try await GitAuthProvider.shared.pollDeviceToken(provider: provider, deviceCode: devCode.deviceCode, interval: devCode.interval)
                 
-                // Repositories remain controlled by user - prompt to reuse if found
-                let repos = await GitAuthProvider.shared.listUserRepositories(provider: provider)
+                // Scope sync strictly to the dedicated private `citadel-sync` repo
+                if RemoteSyncManager.shared.getRemoteURL() == nil {
+                    _ = try? await GitAuthProvider.shared.ensurePrivateSyncRepo(provider: provider)
+                }
                 
                 await MainActor.run {
-                    self.availableRemoteRepos = repos
                     self.isAuthenticating = false
                     self.showAuthModal = false
                     self.oauthErrorMessage = nil
@@ -3223,7 +3217,7 @@ struct SettingsChamber: View {
                         }
                     }
                     
-                    // Remote Target Selection & Custom Repo Input
+                    // Dedicated Private Sync Repository (citadel-sync)
                     VStack(alignment: .leading, spacing: BrandSpacing.sm) {
                         HStack {
                             Text("Remote Store Repository")
@@ -3231,10 +3225,10 @@ struct SettingsChamber: View {
                                 .foregroundColor(store.palette.textSecondary)
                             Spacer()
                             if let prov = store.githubUser != nil ? GitProvider.github : (store.gitlabUser != nil ? GitProvider.gitlab : nil) {
-                                Button(action: { store.fetchAvailableRepos(for: prov) }) {
+                                Button(action: { store.connectDedicatedSyncRepository(for: prov) }) {
                                     HStack(spacing: 4) {
                                         Image(systemName: store.isLoadingRepos ? "arrow.triangle.2.circlepath" : "arrow.clockwise")
-                                        Text(store.isLoadingRepos ? "Loading..." : "Refresh User Repos")
+                                        Text(store.isLoadingRepos ? "Connecting..." : "Verify citadel-sync")
                                     }
                                     .font(.brandMonoMicro)
                                     .foregroundColor(store.palette.accent)
@@ -3269,7 +3263,7 @@ struct SettingsChamber: View {
                                     .buttonStyle(.plain)
                                 }
                                 
-                                Button("Change") {
+                                Button("Disconnect") {
                                     _ = RemoteSyncManager.shared.setRemoteURL("")
                                     store.remoteRepoExists = false
                                     store.refresh()
@@ -3282,71 +3276,21 @@ struct SettingsChamber: View {
                             .padding(BrandSpacing.sm)
                             .liquidGlass(cornerRadius: BrandCornerRadius.sm, tint: store.palette.accent)
                         } else {
-                            // Picker for User Repositories if fetched
-                            if !store.availableRemoteRepos.isEmpty {
-                                VStack(alignment: .leading, spacing: 6) {
-                                    Text("Select from your account repositories:")
-                                        .font(.brandCaption)
-                                        .foregroundColor(store.palette.textMuted)
-                                    
-                                    ScrollView {
-                                        LazyVStack(spacing: 4) {
-                                            ForEach(store.availableRemoteRepos) { repo in
-                                                Button(action: { store.selectRemoteRepository(repo) }) {
-                                                    HStack {
-                                                        Image(systemName: repo.isPrivate ? "lock.fill" : "globe")
-                                                            .font(.system(size: 10))
-                                                            .foregroundColor(store.palette.textMuted)
-                                                        Text(repo.fullName)
-                                                            .font(.brandMono)
-                                                            .foregroundColor(store.palette.textPrimary)
-                                                        Spacer()
-                                                        Text("SELECT")
-                                                            .font(.brandMonoBadge)
-                                                            .foregroundColor(store.palette.accent)
-                                                    }
-                                                    .padding(.horizontal, BrandSpacing.sm)
-                                                    .padding(.vertical, BrandSpacing.xs)
-                                                    .liquidGlass(cornerRadius: BrandCornerRadius.sm)
-                                                }
-                                                .buttonStyle(.plain)
-                                            }
-                                        }
-                                    }
-                                    .frame(maxHeight: 120)
-                                }
-                            }
-                            
-                            // Custom Git URL or Create Default Repo
-                            HStack(spacing: BrandSpacing.xs) {
-                                TextField("Enter any git repository URL (e.g. git@github.com:you/store.git)...", text: $store.customRepoInput)
-                                    .textFieldStyle(.plain)
-                                    .font(.brandMono)
-                                    .padding(BrandSpacing.xs)
-                                    .liquidGlass(cornerRadius: BrandCornerRadius.sm)
-                                
-                                Button("SET REPO") {
-                                    store.setCustomRemoteRepository(store.customRepoInput)
-                                    store.customRepoInput = ""
-                                }
-                                .font(.brandMonoBadge)
-                                .foregroundColor(store.palette.textPrimary)
-                                .padding(.horizontal, BrandSpacing.sm)
-                                .padding(.vertical, BrandSpacing.xs)
-                                .liquidGlassPill()
-                                .buttonStyle(.plain)
-                                .disabled(store.customRepoInput.trimmingCharacters(in: .whitespaces).isEmpty)
-                            }
-                            
-                            // Permission-based creation button
+                            // Dedicated private citadel-sync repository connection
                             if store.githubUser != nil || store.gitlabUser != nil {
                                 HStack {
-                                    Text("Or create a brand new private repository:")
-                                        .font(.brandCaption)
-                                        .foregroundColor(store.palette.textMuted)
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text("Dedicated Private Sync Repository")
+                                            .font(.brandCaption.weight(.semibold))
+                                            .foregroundColor(store.palette.textPrimary)
+                                        Text("Citadel syncs exclusively with your private `citadel-sync` repository.")
+                                            .font(.brandCaption)
+                                            .foregroundColor(store.palette.textMuted)
+                                    }
                                     Spacer()
-                                    Button("Create Private 'citadel-sync'...") {
-                                        store.showCreateRepoDialog = true
+                                    Button(store.isLoadingRepos ? "Connecting..." : "Connect Private 'citadel-sync'") {
+                                        let provider: GitProvider = store.githubUser != nil ? .github : .gitlab
+                                        store.connectDedicatedSyncRepository(for: provider)
                                     }
                                     .font(.brandMonoMicro)
                                     .foregroundColor(store.palette.accent)
@@ -3354,8 +3298,12 @@ struct SettingsChamber: View {
                                     .padding(.vertical, BrandSpacing.xxs)
                                     .liquidGlassPill(tint: store.palette.accent)
                                     .buttonStyle(.plain)
+                                    .disabled(store.isLoadingRepos)
                                 }
-                                .padding(.top, 4)
+                            } else {
+                                Text("Sign in with GitHub or GitLab above to connect your private `citadel-sync` repository.")
+                                    .font(.brandCaption)
+                                    .foregroundColor(store.palette.textMuted)
                             }
                         }
                     }
