@@ -605,6 +605,9 @@ final class CitadelStore: ObservableObject {
     @Published var isSearchingMarket: Bool = false
     @Published var installingPackage: String? = nil
     @Published var removingPackage: String? = nil
+    @Published var selectedMarketPackage: NPMSkillPackage? = nil
+    private var marketplaceSearchTask: Task<Void, Never>? = nil
+    private var marketplaceCancellables = Set<AnyCancellable>()
     
     // Selection
     @Published var searchText: String = ""
@@ -764,6 +767,16 @@ final class CitadelStore: ObservableObject {
         if previouslyCompleted && isConfigPresent {
             refresh()
         }
+        
+        // Auto-search marketplace with 300ms debounce
+        $marketQuery
+            .dropFirst()
+            .debounce(for: .milliseconds(300), scheduler: DispatchQueue.main)
+            .removeDuplicates()
+            .sink { [weak self] _ in
+                self?.searchMarketplace()
+            }
+            .store(in: &marketplaceCancellables)
     }
     
     /// Synchronously re-reads remote status from git configuration and updates published properties
@@ -990,9 +1003,20 @@ final class CitadelStore: ObservableObject {
     }
     
     func searchMarketplace() {
+        marketplaceSearchTask?.cancel()
+        marketplaceSearchTask = nil
+        
+        let trimmed = marketQuery.trimmingCharacters(in: .whitespaces)
+        guard !trimmed.isEmpty else {
+            self.marketPackages = []
+            self.isSearchingMarket = false
+            return
+        }
+        
         isSearchingMarket = true
-        Task {
-            let pkgs = (try? await NPMRegistry.shared.searchSkills(query: marketQuery)) ?? []
+        marketplaceSearchTask = Task {
+            let pkgs = (try? await NPMRegistry.shared.searchSkills(query: trimmed)) ?? []
+            guard !Task.isCancelled else { return }
             await MainActor.run {
                 self.marketPackages = pkgs
                 self.isSearchingMarket = false
@@ -3009,6 +3033,8 @@ struct SidebarDeck: View {
                     }
                     .padding(.horizontal, BrandSpacing.sm)
                     .padding(.vertical, BrandSpacing.xs)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .contentShape(Rectangle())
                     .background {
                         if store.selectedNav == section {
                             store.palette.accentMuted
@@ -3185,6 +3211,8 @@ struct ArmoryChamber: View {
                                 }
                                 .padding(.horizontal, BrandSpacing.md)
                                 .padding(.vertical, BrandSpacing.sm)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .contentShape(Rectangle())
                                 .background {
                                     if store.selectedSkill?.id == skill.id {
                                         store.palette.accentMuted
@@ -4094,6 +4122,14 @@ struct DiscoveryChamber: View {
                                     }
                                 }
                                 .padding(BrandSpacing.md)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .contentShape(Rectangle())
+                                .onTapGesture {
+                                    withAnimation(BrandMotion.fastSpring) {
+                                        store.selectDiscoverySkillGroup(group)
+                                        store.showDiscoverySkillPreview = true
+                                    }
+                                }
                                 .background {
                                     if store.selectedDiscoverySkill?.name == group.name {
                                         store.palette.accentMuted
@@ -4320,14 +4356,14 @@ struct MarketplaceChamber: View {
                     .clipShape(BrandShapes.pill)
                 }
                 
-                Text("Citadel is not a proprietary marketplace. It queries public packages via npm and runs npx in the background to install or remove skills across your local AI tools.")
+                Text("Citadel verifies 100% of skills for AI agents via the open agent skills ecosystem (skills.sh) and verified npm agent packages. Installs natively via npx in the background.")
                     .font(.brandCaption)
                     .foregroundColor(store.palette.textSecondary)
                 
                 HStack(spacing: BrandSpacing.xs) {
                     Image(systemName: "magnifyingglass")
                         .foregroundColor(store.palette.textMuted)
-                    TextField("Search npm packages (e.g. skills, agent-skills, react)...", text: $store.marketQuery)
+                    TextField("Search skills (e.g. react, git, tdd, python, design)...", text: $store.marketQuery)
                         .textFieldStyle(.plain)
                         .font(.brandMono)
                         .foregroundColor(store.palette.textPrimary)
@@ -4346,11 +4382,18 @@ struct MarketplaceChamber: View {
                     
                     Button(action: { store.searchMarketplace() }) {
                         HStack(spacing: BrandSpacing.xxs) {
-                            if store.isSearchingMarket {
-                                ProgressView()
-                                    .scaleEffect(0.6)
+                            ZStack {
+                                if store.isSearchingMarket {
+                                    ProgressView()
+                                        .scaleEffect(0.6)
+                                } else {
+                                    Image(systemName: "magnifyingglass")
+                                        .font(.system(size: 11, weight: .bold))
+                                }
                             }
-                            Text("SEARCH NPM")
+                            .frame(width: 14, height: 14)
+                            
+                            Text("SEARCH SKILLS")
                                 .font(.brandMonoBadge)
                         }
                         .foregroundColor(store.palette.textPrimary)
@@ -4444,11 +4487,48 @@ struct MarketplaceChamber: View {
                                             .padding(.vertical, 2)
                                             .background(Color.brand.surfaceSunken)
                                             .clipShape(BrandShapes.small)
+                                        
+                                        // Detail Modal Trigger
+                                        Button(action: {
+                                            store.selectedMarketPackage = pkg
+                                        }) {
+                                            HStack(spacing: 3) {
+                                                Image(systemName: "info.circle")
+                                                Text("DETAILS")
+                                            }
+                                            .font(.brandMonoBadge)
+                                            .foregroundColor(store.palette.textSecondary)
+                                            .padding(.horizontal, 6)
+                                            .padding(.vertical, 2)
+                                            .background(store.palette.card)
+                                            .clipShape(BrandShapes.small)
+                                            .overlay(BrandShapes.small.stroke(store.palette.border, lineWidth: 1))
+                                        }
+                                        .buttonStyle(.plain)
+                                        
+                                        // Direct URL link
+                                        if let targetURL = pkg.homepageURL ?? pkg.repositoryURL ?? pkg.npmURL {
+                                            Button(action: {
+                                                NSWorkspace.shared.open(targetURL)
+                                            }) {
+                                                HStack(spacing: 3) {
+                                                    Image(systemName: "arrow.up.right.square")
+                                                    Text(pkg.homepageURL != nil ? "HOMEPAGE" : (pkg.repositoryURL != nil ? "GITHUB" : "NPM"))
+                                                }
+                                                .font(.brandMonoBadge)
+                                                .foregroundColor(store.palette.accent)
+                                                .padding(.horizontal, 6)
+                                                .padding(.vertical, 2)
+                                                .background(store.palette.accentMuted)
+                                                .clipShape(BrandShapes.small)
+                                            }
+                                            .buttonStyle(.plain)
+                                        }
                                     }
                                     .padding(.top, 2)
                                 }
                                 
-                                Spacer()
+                                Spacer(minLength: BrandSpacing.md)
                                 
                                 HStack(spacing: BrandSpacing.xs) {
                                     if installed {
@@ -4491,6 +4571,11 @@ struct MarketplaceChamber: View {
                                 }
                             }
                             .padding(BrandSpacing.md)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .contentShape(Rectangle())
+                            .onTapGesture {
+                                store.selectedMarketPackage = pkg
+                            }
                             .background(store.palette.background)
                             
                             Divider().background(store.palette.border)
@@ -4499,6 +4584,184 @@ struct MarketplaceChamber: View {
                 }
             }
         }
+        .sheet(item: $store.selectedMarketPackage) { pkg in
+            MarketPackageDetailSheet(pkg: pkg, store: store)
+        }
+    }
+}
+
+// MARK: - Marketplace Package Detail Sheet
+
+struct MarketPackageDetailSheet: View {
+    let pkg: NPMSkillPackage
+    @ObservedObject var store: CitadelStore
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            // Header
+            HStack(alignment: .top) {
+                VStack(alignment: .leading, spacing: BrandSpacing.xxs) {
+                    HStack(spacing: BrandSpacing.xs) {
+                        Text(pkg.name)
+                            .font(.brandTitle)
+                            .foregroundColor(store.palette.textPrimary)
+                        Text("v" + pkg.version)
+                            .font(.brandMonoBadge)
+                            .foregroundColor(store.palette.accent)
+                            .padding(.horizontal, BrandSpacing.xs)
+                            .padding(.vertical, BrandSpacing.xxs - 2)
+                            .background(store.palette.accentMuted)
+                            .clipShape(BrandShapes.pill)
+                    }
+                    if let pub = pkg.publisher {
+                        Text("Published by @" + pub)
+                            .font(.brandCaption)
+                            .foregroundColor(store.palette.textMuted)
+                    }
+                }
+                
+                Spacer()
+                
+                Button(action: {
+                    store.selectedMarketPackage = nil
+                }) {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.system(size: 20))
+                        .foregroundColor(store.palette.textMuted)
+                }
+                .buttonStyle(.plain)
+            }
+            .padding(BrandSpacing.md)
+            .background(store.palette.card)
+            
+            Divider().background(store.palette.border)
+            
+            ScrollView {
+                VStack(alignment: .leading, spacing: BrandSpacing.md) {
+                    if let desc = pkg.description {
+                        VStack(alignment: .leading, spacing: BrandSpacing.xxs) {
+                            Text("DESCRIPTION")
+                                .font(.brandMonoBadge)
+                                .foregroundColor(store.palette.textMuted)
+                            Text(desc)
+                                .font(.brandBody)
+                                .foregroundColor(store.palette.textSecondary)
+                        }
+                    }
+                    
+                    // Installation Terminal Command
+                    VStack(alignment: .leading, spacing: BrandSpacing.xxs) {
+                        Text("CLI INSTALLATION COMMAND")
+                            .font(.brandMonoBadge)
+                            .foregroundColor(store.palette.textMuted)
+                        HStack {
+                            Text("npx skills add \(pkg.name)")
+                                .font(.brandMono)
+                                .foregroundColor(store.palette.textPrimary)
+                            Spacer()
+                            Button(action: {
+                                NSPasteboard.general.clearContents()
+                                NSPasteboard.general.setString("npx skills add \(pkg.name)", forType: .string)
+                            }) {
+                                Image(systemName: "doc.on.doc")
+                                    .foregroundColor(store.palette.accent)
+                            }
+                            .buttonStyle(.plain)
+                        }
+                        .padding(BrandSpacing.sm)
+                        .background(Color.brand.surfaceSunken)
+                        .clipShape(BrandShapes.small)
+                    }
+                    
+                    // Keywords
+                    if let kw = pkg.keywords, !kw.isEmpty {
+                        VStack(alignment: .leading, spacing: BrandSpacing.xxs) {
+                            Text("KEYWORDS")
+                                .font(.brandMonoBadge)
+                                .foregroundColor(store.palette.textMuted)
+                            ScrollView(.horizontal, showsIndicators: false) {
+                                HStack(spacing: 6) {
+                                    ForEach(kw, id: \.self) { word in
+                                        Text(word)
+                                            .font(.brandCaption)
+                                            .foregroundColor(store.palette.textSecondary)
+                                            .padding(.horizontal, 8)
+                                            .padding(.vertical, 3)
+                                            .background(store.palette.card)
+                                            .clipShape(BrandShapes.pill)
+                                            .overlay(BrandShapes.pill.stroke(store.palette.border, lineWidth: 1))
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    
+                    // External Links
+                    VStack(alignment: .leading, spacing: BrandSpacing.xs) {
+                        Text("PACKAGE LINKS")
+                            .font(.brandMonoBadge)
+                            .foregroundColor(store.palette.textMuted)
+                        
+                        HStack(spacing: BrandSpacing.sm) {
+                            if let hp = pkg.homepageURL {
+                                Button(action: { NSWorkspace.shared.open(hp) }) {
+                                    HStack(spacing: 4) {
+                                        Image(systemName: "globe")
+                                        Text("HOMEPAGE")
+                                        Image(systemName: "arrow.up.right")
+                                    }
+                                    .font(.brandMonoBadge)
+                                    .foregroundColor(store.palette.accent)
+                                    .padding(.horizontal, BrandSpacing.sm)
+                                    .padding(.vertical, BrandSpacing.xs)
+                                    .background(store.palette.accentMuted)
+                                    .clipShape(BrandShapes.pill)
+                                }
+                                .buttonStyle(.plain)
+                            }
+                            
+                            if let repo = pkg.repositoryURL {
+                                Button(action: { NSWorkspace.shared.open(repo) }) {
+                                    HStack(spacing: 4) {
+                                        Image(systemName: "curlybraces.square")
+                                        Text("REPOSITORY")
+                                        Image(systemName: "arrow.up.right")
+                                    }
+                                    .font(.brandMonoBadge)
+                                    .foregroundColor(store.palette.accent)
+                                    .padding(.horizontal, BrandSpacing.sm)
+                                    .padding(.vertical, BrandSpacing.xs)
+                                    .background(store.palette.accentMuted)
+                                    .clipShape(BrandShapes.pill)
+                                }
+                                .buttonStyle(.plain)
+                            }
+                            
+                            if let npm = pkg.npmURL {
+                                Button(action: { NSWorkspace.shared.open(npm) }) {
+                                    HStack(spacing: 4) {
+                                        Image(systemName: "shippingbox")
+                                        Text("NPM REGISTRY")
+                                        Image(systemName: "arrow.up.right")
+                                    }
+                                    .font(.brandMonoBadge)
+                                    .foregroundColor(store.palette.textMuted)
+                                    .padding(.horizontal, BrandSpacing.sm)
+                                    .padding(.vertical, BrandSpacing.xs)
+                                    .background(store.palette.card)
+                                    .clipShape(BrandShapes.pill)
+                                    .overlay(BrandShapes.pill.stroke(store.palette.border, lineWidth: 1))
+                                }
+                                .buttonStyle(.plain)
+                            }
+                        }
+                    }
+                }
+                .padding(BrandSpacing.md)
+            }
+            .background(store.palette.background)
+        }
+        .frame(width: 520, height: 460)
     }
 }
 

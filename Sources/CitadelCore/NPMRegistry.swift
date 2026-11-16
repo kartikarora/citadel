@@ -8,6 +8,9 @@ public struct NPMSkillPackage: Codable, Identifiable, Sendable {
     public let publisher: String?
     public let tarballURL: URL?
     public let keywords: [String]?
+    public let homepageURL: URL?
+    public let repositoryURL: URL?
+    public let npmURL: URL?
     
     public init(
         name: String,
@@ -15,7 +18,10 @@ public struct NPMSkillPackage: Codable, Identifiable, Sendable {
         description: String? = nil,
         publisher: String? = nil,
         tarballURL: URL? = nil,
-        keywords: [String]? = nil
+        keywords: [String]? = nil,
+        homepageURL: URL? = nil,
+        repositoryURL: URL? = nil,
+        npmURL: URL? = nil
     ) {
         self.name = name
         self.version = version
@@ -23,29 +29,185 @@ public struct NPMSkillPackage: Codable, Identifiable, Sendable {
         self.publisher = publisher
         self.tarballURL = tarballURL
         self.keywords = keywords
+        self.homepageURL = homepageURL
+        self.repositoryURL = repositoryURL
+        self.npmURL = npmURL
     }
 }
 
 public final class NPMRegistry: Sendable {
     public static let shared = NPMRegistry()
     
-    /// Searches npm via registry.npmjs.org for skills packages matching query
+    /// Checks whether an npm package represents a genuine AI agent skill
+    public static func isAIAgentSkill(name: String, description: String?, keywords: [String]?) -> Bool {
+        let nameLower = name.lowercased()
+        let descLower = (description ?? "").lowercased()
+        let keywordsLower = (keywords ?? []).map { $0.lowercased() }
+        
+        // Negative heuristic: Pure UI component libraries or non-AI packages mistakenly tagging "agent-skills"
+        let nonSkillIndicators = [
+            "component library", "react components", "design system",
+            "hosting app sdk", "css foundations", "icon set in iconify",
+            "icons for stx from iconify"
+        ]
+        if nonSkillIndicators.contains(where: { descLower.contains($0) }) {
+            // Only allow if explicitly defining SKILL.md or curated skills
+            let explicitSkillIndicators = ["skill.md", "agent skills for", "curated agent skills", "skills for ai"]
+            if !explicitSkillIndicators.contains(where: { descLower.contains($0) }) {
+                return false
+            }
+        }
+        
+        // 1. Direct AI agent skill keywords
+        let aiKeywords: Set<String> = [
+            "agent-skills", "agent-skill", "agentskills", "skill-md",
+            "ai-agents", "ai-agent", "coding-agent", "coding-agents",
+            "claude-code", "claude-code-plugin", "cursor-rules",
+            "agent-plugin", "agent-plugins", "agentic-ai", "deepseek-harness"
+        ]
+        if keywordsLower.contains(where: { aiKeywords.contains($0) }) {
+            return true
+        }
+        
+        // 2. Generic skill keyword paired with an AI environment indicator
+        if keywordsLower.contains("skills") || keywordsLower.contains("skill") {
+            let aiIndicators = ["ai", "agent", "agents", "llm", "claude", "cursor", "codex", "mcp"]
+            if keywordsLower.contains(where: { aiIndicators.contains($0) }) {
+                return true
+            }
+        }
+        
+        // 3. Description mentions SKILL.md, agent skills, or AI coding assistant skills
+        let descTriggers = [
+            "skill.md", "agent skills", "agent skill", "skills for ai",
+            "skills for coding agents", "ai coding agents", "ai agent skills"
+        ]
+        if descTriggers.contains(where: { descLower.contains($0) }) {
+            return true
+        }
+        
+        // 4. Package naming conventions paired with AI descriptions
+        let isSkillNamed = nameLower.hasSuffix("-skills") ||
+                           nameLower.hasPrefix("skills-") ||
+                           nameLower.contains("/skills") ||
+                           nameLower.contains("-agent-skills")
+        if isSkillNamed {
+            let aiDescWords = ["agent", "ai", "claude", "cursor", "codex", "llm", "mcp"]
+            if aiDescWords.contains(where: { descLower.contains($0) || keywordsLower.contains($0) }) {
+                return true
+            }
+        }
+        
+        return false
+    }
+    
+    /// Searches official AI agent skills directories (skills.sh) and verified npm packages
     public func searchSkills(query: String? = nil) async throws -> [NPMSkillPackage] {
         var queryStr = "skills"
         if let q = query, !q.trimmingCharacters(in: .whitespaces).isEmpty {
             queryStr = q.trimmingCharacters(in: .whitespaces)
         }
         
-        guard let encoded = queryStr.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed),
+        // Concurrently query:
+        // 1. skills.sh API (The official open agent skills ecosystem directory - 100% verified AI skills)
+        // 2. npm registry (strictly filtered by AI skill metadata heuristics)
+        async let skillsShResults = searchSkillsDirectory(query: queryStr)
+        async let npmResults = searchNpmRegistry(query: queryStr)
+        
+        let (shList, npmList) = await (skillsShResults, npmResults)
+        
+        // Merge without duplicates, prioritizing skills.sh verified skills
+        var seenNames = Set<String>()
+        var combined: [NPMSkillPackage] = []
+        
+        for pkg in shList {
+            let key = pkg.name.lowercased()
+            if !seenNames.contains(key) {
+                seenNames.insert(key)
+                combined.append(pkg)
+            }
+        }
+        
+        for pkg in npmList {
+            let key = pkg.name.lowercased()
+            if !seenNames.contains(key) {
+                seenNames.insert(key)
+                combined.append(pkg)
+            }
+        }
+        
+        return combined
+    }
+    
+    /// Queries the open agent skills directory at skills.sh
+    private func searchSkillsDirectory(query: String) async -> [NPMSkillPackage] {
+        guard let encoded = query.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed),
+              let url = URL(string: "https://skills.sh/api/search?q=\(encoded)") else {
+            return []
+        }
+        
+        var request = URLRequest(url: url)
+        request.setValue("Citadel/1.0", forHTTPHeaderField: "User-Agent")
+        request.timeoutInterval = 8.0
+        
+        guard let (data, response) = try? await URLSession.shared.data(for: request),
+              let http = response as? HTTPURLResponse, http.statusCode == 200,
+              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let skills = json["skills"] as? [[String: Any]] else {
+            return []
+        }
+        
+        var packages: [NPMSkillPackage] = []
+        for item in skills {
+            guard let source = item["source"] as? String,
+                  let skillId = item["skillId"] as? String else {
+                continue
+            }
+            
+            let displayName = item["name"] as? String ?? skillId
+            let fullSpec = "\(source)@\(skillId)"
+            let installs = item["installs"] as? Int
+            
+            var desc = "Agent skill from \(source)"
+            if let count = installs, count > 0 {
+                let formattedCount = count >= 1_000_000 ? String(format: "%.1fM", Double(count) / 1_000_000.0) :
+                                     count >= 1_000 ? String(format: "%.1fK", Double(count) / 1_000.0) : "\(count)"
+                desc += " (\(formattedCount) installs)"
+            }
+            
+            let skillPage = URL(string: "https://skills.sh/\(source)/\(skillId)")
+            let repoURL = URL(string: "https://github.com/\(source)")
+            
+            packages.append(NPMSkillPackage(
+                name: fullSpec,
+                version: "latest",
+                description: desc,
+                publisher: source.components(separatedBy: "/").first,
+                tarballURL: nil,
+                keywords: ["agent-skills", "skill-md", displayName],
+                homepageURL: skillPage,
+                repositoryURL: repoURL,
+                npmURL: skillPage
+            ))
+        }
+        
+        return packages
+    }
+    
+    /// Queries npm registry and filters out non-skill packages
+    private func searchNpmRegistry(query: String) async -> [NPMSkillPackage] {
+        guard let encoded = query.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed),
               let url = URL(string: "https://registry.npmjs.org/-/v1/search?text=\(encoded)&size=40") else {
             return []
         }
         
         var request = URLRequest(url: url)
         request.setValue("Citadel/1.0", forHTTPHeaderField: "User-Agent")
+        request.timeoutInterval = 8.0
         
-        let (data, _) = try await URLSession.shared.data(for: request)
-        guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+        guard let (data, response) = try? await URLSession.shared.data(for: request),
+              let http = response as? HTTPURLResponse, http.statusCode == 200,
+              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
               let objects = json["objects"] as? [[String: Any]] else {
             return []
         }
@@ -61,11 +223,30 @@ public final class NPMRegistry: Sendable {
             let publisher = (pkg["publisher"] as? [String: Any])?["username"] as? String
             let keywords = pkg["keywords"] as? [String]
             
-            // Tarball URL
+            // STRICT FILTER: Only accept 100% verified AI agent skills
+            guard Self.isAIAgentSkill(name: name, description: desc, keywords: keywords) else {
+                continue
+            }
+            
+            // Links
+            let links = pkg["links"] as? [String: Any]
             var tarball: URL? = nil
-            if let dist = (pkg["links"] as? [String: Any])?["npm"] as? String {
+            if let dist = links?["npm"] as? String {
                 tarball = URL(string: dist)
             }
+            
+            var homepage: URL? = nil
+            if let hp = links?["homepage"] as? String {
+                homepage = URL(string: hp)
+            }
+            
+            var repo: URL? = nil
+            if let r = links?["repository"] as? String {
+                let cleanR = r.replacingOccurrences(of: "git+", with: "").replacingOccurrences(of: ".git", with: "")
+                repo = URL(string: cleanR)
+            }
+            
+            let npmPage = tarball ?? URL(string: "https://www.npmjs.com/package/\(name)")
             
             packages.append(NPMSkillPackage(
                 name: name,
@@ -73,7 +254,10 @@ public final class NPMRegistry: Sendable {
                 description: desc,
                 publisher: publisher,
                 tarballURL: tarball,
-                keywords: keywords
+                keywords: keywords,
+                homepageURL: homepage,
+                repositoryURL: repo,
+                npmURL: npmPage
             ))
         }
         
@@ -84,8 +268,17 @@ public final class NPMRegistry: Sendable {
     /// Once installed, Citadel discovers the new skill into ~/.citadel/skills and propagates symlinks.
     @discardableResult
     public func install(packageSpec: String) async throws -> String {
-        let cleanName = packageSpec.components(separatedBy: "@").filter { !$0.isEmpty }.first ?? packageSpec
-        let skillFolder = cleanName.replacingOccurrences(of: "/", with: "-").replacingOccurrences(of: "@", with: "")
+        // Derive clean skill folder name
+        let skillFolder: String
+        if packageSpec.contains("@") && !packageSpec.hasPrefix("@") {
+            // e.g. "owner/repo@skill-name"
+            let parts = packageSpec.components(separatedBy: "@")
+            skillFolder = parts.last ?? packageSpec
+        } else {
+            // npm package name e.g. "@scope/package" or "skills"
+            let cleanName = packageSpec.components(separatedBy: "@").filter { !$0.isEmpty }.first ?? packageSpec
+            skillFolder = cleanName.replacingOccurrences(of: "/", with: "-").replacingOccurrences(of: "@", with: "")
+        }
         let targetDir = HubManager.shared.skillsURL.appendingPathComponent(skillFolder)
         
         // 1. Try running `npx -y skills add <packageSpec> -y --copy` in a temporary staging directory

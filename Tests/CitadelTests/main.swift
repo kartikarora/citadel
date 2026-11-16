@@ -712,6 +712,97 @@ func runAllCitadelTests() async throws {
     expect(devB.gitCommit(message: "should be skipped") == false, "gitCommit is skipped while a rebase is in progress")
     s14Git(devBURL, ["rebase", "--abort"])
     
+    // Suite 15: Marketplace Search, Debounced Auto-Search, Thread Cancellation & Details
+    print("\n🧪 Suite 15: Marketplace Search, Auto-Search, Cancellation & Links")
+    let marketVM = MarketplaceViewModel(autoSearchDebounceMs: 50)
+    expect(marketVM.marketPackages.isEmpty, "MarketplaceViewModel starts with empty packages")
+    expect(!marketVM.isSearchingMarket, "MarketplaceViewModel starts not searching")
+    
+    // 1. Package Links & Details Model
+    let samplePkg = NPMSkillPackage(
+        name: "@acme/test-skill",
+        version: "1.2.3",
+        description: "Test agent skill for Citadel",
+        publisher: "acme-dev",
+        tarballURL: URL(string: "https://registry.npmjs.org/@acme/test-skill/-/test-skill-1.2.3.tgz"),
+        keywords: ["skills", "citadel", "agent"],
+        homepageURL: URL(string: "https://acme.dev/skills"),
+        repositoryURL: URL(string: "https://github.com/acme/test-skill"),
+        npmURL: URL(string: "https://www.npmjs.com/package/@acme/test-skill")
+    )
+    
+    expect(samplePkg.name == "@acme/test-skill", "NPMSkillPackage retains name")
+    expect(samplePkg.homepageURL?.absoluteString == "https://acme.dev/skills", "NPMSkillPackage retains homepageURL")
+    expect(samplePkg.repositoryURL?.absoluteString == "https://github.com/acme/test-skill", "NPMSkillPackage retains repositoryURL")
+    expect(samplePkg.npmURL?.absoluteString == "https://www.npmjs.com/package/@acme/test-skill", "NPMSkillPackage retains npmURL")
+    
+    marketVM.selectPackageForDetail(samplePkg)
+    expect(marketVM.selectedDetailPackage?.id == samplePkg.id, "selectPackageForDetail updates selectedDetailPackage")
+    marketVM.selectPackageForDetail(nil)
+    expect(marketVM.selectedDetailPackage == nil, "Deselecting detail package sets to nil")
+    
+    // 2. Cancellation of in-flight searches
+    marketVM.searchPackages(query: "first-query")
+    expect(marketVM.isSearchingMarket, "Searching sets isSearchingMarket to true")
+    // Triggering a second search immediately cancels the first
+    marketVM.searchPackages(query: "second-query")
+    expect(marketVM.isSearchingMarket, "Second search starts and replaces previous task")
+    // Blank search cancels and clears results
+    marketVM.searchPackages(query: "   ")
+    expect(!marketVM.isSearchingMarket && marketVM.marketPackages.isEmpty, "Empty search query resets packages and cancels search")
+    
+    // 3. Auto-search debounce via $marketQuery
+    marketVM.marketQuery = "auto-test"
+    try? await Task.sleep(nanoseconds: 100_000_000) // 100ms > 50ms debounce
+    expect(marketVM.isSearchingMarket || !marketVM.marketPackages.isEmpty, "Typing into marketQuery triggers auto-search after debounce")
+    
+    // Clear query auto-resets
+    marketVM.marketQuery = ""
+    try? await Task.sleep(nanoseconds: 100_000_000)
+    expect(!marketVM.isSearchingMarket && marketVM.marketPackages.isEmpty, "Clearing marketQuery auto-resets search state")
+    
+    // 4. Strict AI Agent Skill Filtering heuristics
+    expect(
+        NPMRegistry.isAIAgentSkill(
+            name: "@pymodel/react-frontend-skills",
+            description: "18 production-grade AI agent skills for React 19, Next.js 16, TypeScript 7",
+            keywords: ["agent-skills", "react", "ai-agents", "claude-code", "skills"]
+        ) == true,
+        "isAIAgentSkill recognizes verified AI agent skill package"
+    )
+    expect(
+        NPMRegistry.isAIAgentSkill(
+            name: "react",
+            description: "React is a JavaScript library for building user interfaces.",
+            keywords: ["react"]
+        ) == false,
+        "isAIAgentSkill rejects standard non-AI npm package (react)"
+    )
+    expect(
+        NPMRegistry.isAIAgentSkill(
+            name: "@botiverse/raft-ui",
+            description: "React components and CSS foundations for the Raft Design System.",
+            keywords: ["agent-skills", "react"]
+        ) == false,
+        "isAIAgentSkill rejects pure UI component library despite keyword tag"
+    )
+    expect(
+        NPMRegistry.isAIAgentSkill(
+            name: "agent-install",
+            description: "Install SKILL.md files, MCP servers, and AGENTS.md guidance for any coding agent.",
+            keywords: ["agent", "skills", "skill-md"]
+        ) == true,
+        "isAIAgentSkill recognizes SKILL.md / agent guidance tooling"
+    )
+    expect(
+        NPMRegistry.isAIAgentSkill(
+            name: "express",
+            description: "Fast, unopinionated, minimalist web framework",
+            keywords: ["express", "framework", "sinatra"]
+        ) == false,
+        "isAIAgentSkill rejects express web framework"
+    )
+    
     print("\n==================================================")
     print("🎉 ALL \(passedCount)/\(totalCount) UNIT TESTS PASSED SUCCESSFULLY!")
     print("==================================================\n")

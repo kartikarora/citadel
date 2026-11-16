@@ -44,4 +44,14 @@ cat <<PLIST > "${APP_BUNDLE}/Contents/Info.plist"
 </plist>
 PLIST
 
+# Sign with local development certificate if available, fallback to ad-hoc
+CERT_NAME="Citadel Development"
+if security find-certificate -c "${CERT_NAME}" >/dev/null 2>&1; then
+    echo "==> Signing ${APP_BUNDLE} with local developer certificate '${CERT_NAME}'..."
+    codesign --force --deep --sign "${CERT_NAME}" "${APP_BUNDLE}"
+else
+    echo "==> Signing ${APP_BUNDLE} with ad-hoc signature..."
+    codesign --force --deep --sign - "${APP_BUNDLE}"
+fi
+
 echo "==> Debug bundle created at ${APP_BUNDLE}"
