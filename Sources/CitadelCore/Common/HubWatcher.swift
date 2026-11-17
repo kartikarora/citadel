@@ -86,9 +86,11 @@ public final class HubWatcher: @unchecked Sendable {
             self?.timer?.invalidate()
             // Check for remote sync updates every 60 seconds if configured
             self?.timer = Timer.scheduledTimer(withTimeInterval: 60.0, repeats: true) { [weak self] _ in
-                self?.queue.async {
+                guard let self = self else { return }
+                let cb = self.onChangeDetected
+                self.queue.async {
                     if RemoteSyncManager.shared.getRemoteURL() != nil {
-                        self?.onChangeDetected?()
+                        cb?()
                     }
                 }
             }
