@@ -42,6 +42,7 @@ public struct BrandShapes {
     public static let small = RoundedRectangle(cornerRadius: BrandCornerRadius.sm, style: .continuous)
     public static let medium = RoundedRectangle(cornerRadius: BrandCornerRadius.md, style: .continuous)
     public static let large = RoundedRectangle(cornerRadius: BrandCornerRadius.lg, style: .continuous)
+    public static let card = RoundedRectangle(cornerRadius: BrandCornerRadius.md, style: .continuous)
     public static let pill = Capsule()
 }
 
@@ -639,7 +640,11 @@ final class CitadelStore: ObservableObject {
     @Published var rollbackNotice: String = ""
     @Published var cliInstallationNotice: String = ""
     @Published var cliErrorMessage: String? = nil
-    @Published var selectedSkillPortalTarget: Skill? = nil
+    // Workspaces UI state
+    @Published var selectedWorkspacePath: String? = nil
+    @Published var workspaceAgentFilterText: String = ""
+    @Published var workspaceSkillFilterText: String = ""
+    @Published var workspaceShowAllAgents: Bool = false
     
     // Existing Sync Repo Detection & Re-use Prompt (Identified by SyncMarker, not by name)
     @Published var existingSyncRepoFound: Bool = false
@@ -777,6 +782,15 @@ final class CitadelStore: ObservableObject {
                 self?.searchMarketplace()
             }
             .store(in: &marketplaceCancellables)
+            
+        // Start automatic filesystem and remote watcher for ~/.citadel
+        HubWatcher.shared.onChangeDetected = { [weak self] in
+            Task { @MainActor [weak self] in
+                guard let self = self, !self.isSyncing else { return }
+                self.syncAllWithRemote()
+            }
+        }
+        HubWatcher.shared.start()
     }
     
     /// Synchronously re-reads remote status from git configuration and updates published properties
@@ -814,6 +828,10 @@ final class CitadelStore: ObservableObject {
         
         if selectedSkill == nil, let first = skills.first {
             selectSkill(first)
+        }
+        
+        if selectedWorkspacePath == nil || !portals.contains(where: { $0.projectPath.path == selectedWorkspacePath }) {
+            self.selectedWorkspacePath = portals.first?.projectPath.path
         }
     }
     
@@ -1064,17 +1082,76 @@ final class CitadelStore: ObservableObject {
         
         if panel.runModal() == .OK, let url = panel.url {
             var existing = HubManager.shared.loadPortals()
-            let allSkills = skills.map { $0.name }
-            let allMCPs = mcps.map { $0.name }
             
-            if let idx = existing.firstIndex(where: { $0.projectPath.path == url.path }) {
-                existing[idx].enabledSkills = allSkills
-            } else {
-                existing.append(ProjectPortal(projectPath: url, enabledSkills: allSkills, enabledMCPs: allMCPs))
+            // Detect which agent targets already exist in this repo
+            var detectedTargets: [ToolTarget] = []
+            var detectedAgentIds: [String] = []
+            let detected = AgentRegistry.shared.detectedProjectSkillDirs(in: url)
+            for d in detected {
+                if let agent = AgentRegistry.shared.agent(for: d.label) {
+                    detectedAgentIds.append(agent.id)
+                }
+                if d.label.contains("claude") { detectedTargets.append(.claudeCode) }
+                else if d.label.contains("gemini") { detectedTargets.append(.antigravityGlobal) }
+                else if d.label.contains("cursor") { detectedTargets.append(.cursor) }
+                else if d.label.contains("agents") || d.label.contains("codex") { detectedTargets.append(.codex) }
+                else if d.label.contains("android-studio") { detectedTargets.append(.androidStudio) }
+                else if d.label.contains("junie") { detectedTargets.append(.junie) }
+            }
+            if detectedTargets.isEmpty {
+                detectedTargets = [.antigravityGlobal, .claudeCode]
+                detectedAgentIds.append(contentsOf: ["claude-code", "antigravity"])
+            }
+            detectedTargets = Array(Set(detectedTargets))
+            detectedAgentIds = Array(Set(detectedAgentIds))
+            
+            if existing.firstIndex(where: { $0.projectPath.path == url.path }) == nil {
+                // By default, never dump all skills blindly into a new workspace.
+                // Start with empty enabledSkills so user can selectively assign them.
+                existing.append(ProjectPortal(projectPath: url, enabledSkills: [], enabledMCPs: [], targetTools: detectedTargets, targetAgentIds: detectedAgentIds))
             }
             try? HubManager.shared.savePortals(existing)
+            self.portals = existing
+            self.selectedWorkspacePath = url.path
             syncAll()
         }
+    }
+    
+    /// Toggles an agent target (by ToolTarget or agent ID) for a workspace portal
+    func toggleTargetToolForWorkspace(tool: ToolTarget, workspaceURL: URL) {
+        toggleAgentForWorkspace(agentId: tool.rawValue, fallbackTool: tool, workspaceURL: workspaceURL)
+    }
+    
+    /// Toggles any agent (from AgentRegistry or ToolTarget) for a workspace portal
+    func toggleAgentForWorkspace(agentId: String, fallbackTool: ToolTarget? = nil, workspaceURL: URL) {
+        var existing = HubManager.shared.loadPortals()
+        guard let idx = existing.firstIndex(where: { $0.projectPath.path == workspaceURL.path }) else { return }
+        
+        var agentIds = existing[idx].targetAgentIds
+        var targets = existing[idx].targetTools
+        let resolvedTool = fallbackTool ?? ToolTarget(rawValue: agentId) ?? ToolTarget.from(agentId: agentId)
+        
+        let isCurrentlyActive = existing[idx].isAgentActive(agentId)
+        
+        if isCurrentlyActive {
+            agentIds.removeAll { $0 == agentId }
+            if let tool = resolvedTool {
+                targets.removeAll { $0 == tool }
+            }
+        } else {
+            if !agentIds.contains(agentId) {
+                agentIds.append(agentId)
+            }
+            if let tool = resolvedTool, !targets.contains(tool) {
+                targets.append(tool)
+            }
+        }
+        
+        existing[idx].targetAgentIds = agentIds
+        existing[idx].targetTools = targets
+        try? HubManager.shared.savePortals(existing)
+        self.portals = existing
+        syncAll()
     }
     
     /// Toggles whether a specific skill is symlinked into a specific workspace portal
@@ -1092,6 +1169,18 @@ final class CitadelStore: ObservableObject {
         existing[idx].enabledSkills = enabled
         try? HubManager.shared.savePortals(existing)
         self.portals = existing
+        syncAll()
+    }
+    
+    /// Disconnects and removes a project workspace portal
+    func removeProjectPortal(_ portal: ProjectPortal) {
+        var existing = HubManager.shared.loadPortals()
+        existing.removeAll { $0.projectPath.path == portal.projectPath.path }
+        try? HubManager.shared.savePortals(existing)
+        self.portals = existing
+        if selectedWorkspacePath == portal.projectPath.path {
+            self.selectedWorkspacePath = existing.first?.projectPath.path
+        }
         syncAll()
     }
     
@@ -3250,6 +3339,7 @@ struct ArmoryChamber: View {
                                 store.toggleSkillForWorkspace(skillName: skill.name, workspaceURL: workspaceURL)
                             }
                         )
+                        .id(skill.id)
                     } else {
                         VStack(spacing: BrandSpacing.xs) {
                             Text("Select a skill from the Armory")
@@ -4245,6 +4335,7 @@ struct DiscoveryChamber: View {
                                     }
                                 }
                             )
+                            .id(skill.id)
                         } else {
                             VStack(spacing: BrandSpacing.xs) {
                                 Image(systemName: "doc.text.magnifyingglass")
@@ -4765,88 +4856,478 @@ struct MarketPackageDetailSheet: View {
     }
 }
 
+// MARK: - Flow Layout
+struct FlowLayout: Layout {
+    var spacing: CGFloat = 8
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        let width = proposal.width ?? .infinity
+        var currentX: CGFloat = 0
+        var currentY: CGFloat = 0
+        var lineHeight: CGFloat = 0
+
+        for subview in subviews {
+            let size = subview.sizeThatFits(.unspecified)
+            if currentX + size.width > width && currentX > 0 {
+                currentX = 0
+                currentY += lineHeight + spacing
+                lineHeight = 0
+            }
+            currentX += size.width + spacing
+            lineHeight = max(lineHeight, size.height)
+        }
+
+        return CGSize(width: width, height: currentY + lineHeight)
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        var currentX = bounds.minX
+        var currentY = bounds.minY
+        var lineHeight: CGFloat = 0
+
+        for subview in subviews {
+            let size = subview.sizeThatFits(.unspecified)
+            if currentX + size.width > bounds.maxX && currentX > bounds.minX {
+                currentX = bounds.minX
+                currentY += lineHeight + spacing
+                lineHeight = 0
+            }
+            subview.place(at: CGPoint(x: currentX, y: currentY), proposal: .unspecified)
+            currentX += size.width + spacing
+            lineHeight = max(lineHeight, size.height)
+        }
+    }
+}
+
 // MARK: - Workspaces Chamber
 
 struct WorkspacesChamber: View {
     @ObservedObject var store: CitadelStore
     
+    // Top agents surfaced directly (like npx skills prominent list)
+    private let prominentAgentIds: [String] = [
+        "claude-code",
+        "antigravity",
+        "cursor",
+        "codex",
+        "windsurf",
+        "github-copilot",
+        "android-studio",
+        "junie",
+        "cline",
+        "devin",
+        "openhands",
+        "zed"
+    ]
+    
+    private var selectedPortal: ProjectPortal? {
+        if let path = store.selectedWorkspacePath {
+            return store.portals.first { $0.projectPath.path == path }
+        }
+        return store.portals.first
+    }
+    
     var body: some View {
+        HStack(spacing: 0) {
+            workspaceListPane
+            Divider().background(store.palette.border.opacity(0.4))
+            workspaceDetailPane
+        }
+    }
+    
+    // MARK: - Left Pane: Repositories List
+    
+    @ViewBuilder
+    private var workspaceListPane: some View {
         VStack(spacing: 0) {
+            // Header
             HStack {
-                VStack(alignment: .leading, spacing: BrandSpacing.xxs) {
-                    Text("IN-PROJECT PORTALS")
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("WORKSPACES")
                         .font(.brandHeadline)
                         .foregroundColor(store.palette.textPrimary)
-                    Text("Projects with active .gemini/skills and .claude/skills symlink injection.")
-                        .font(.brandCaption)
-                        .foregroundColor(store.palette.textSecondary)
+                    Text("\(store.portals.count) connected")
+                        .font(.brandMonoMicro)
+                        .foregroundColor(store.palette.textMuted)
                 }
                 Spacer()
                 Button(action: { store.addProjectPortal() }) {
                     HStack(spacing: BrandSpacing.xs) {
                         Image(systemName: "plus")
-                        Text("CONNECT REPO")
+                            .font(.system(size: 11, weight: .bold))
+                        Text("CONNECT")
                             .font(.brandMonoBadge)
                     }
                     .foregroundColor(store.palette.textPrimary)
-                    .padding(.horizontal, BrandSpacing.md)
-                    .padding(.vertical, BrandSpacing.xs)
+                    .padding(.horizontal, BrandSpacing.sm)
+                    .padding(.vertical, 5)
                     .liquidGlassPill(tint: store.palette.accent)
                 }
                 .buttonStyle(.plain)
+                .help("Connect a local repository to Citadel")
             }
             .padding(BrandSpacing.md)
             
             Divider().background(store.palette.border.opacity(0.3))
             
             if store.portals.isEmpty {
-                VStack(spacing: BrandSpacing.xs) {
-                    Text("NO ACTIVE PROJECT PORTALS")
-                        .font(.brandHeadline)
+                VStack(spacing: BrandSpacing.sm) {
+                    Image(systemName: "folder.badge.plus")
+                        .font(.system(size: 32))
+                        .foregroundColor(store.palette.textMuted.opacity(0.5))
+                    Text("No Connected Repos")
+                        .font(.brandSubheadline)
                         .foregroundColor(store.palette.textSecondary)
-                    Text("Click 'CONNECT REPO' or run 'ctdl portal .' inside any project directory.")
+                    Text("Connect a workspace to selectively inject skills.")
                         .font(.brandCaption)
                         .foregroundColor(store.palette.textMuted)
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal, BrandSpacing.md)
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .background(store.palette.background)
             } else {
                 ScrollView {
                     LazyVStack(spacing: 0) {
                         ForEach(store.portals) { portal in
-                            VStack(alignment: .leading, spacing: BrandSpacing.xs) {
-                                HStack {
-                                    Text(portal.projectPath.lastPathComponent)
-                                        .font(.brandHeadline)
-                                        .foregroundColor(store.palette.textPrimary)
-                                    Spacer()
-                                    Text("PORTAL ACTIVE")
-                                        .font(.brandMonoBadge)
-                                        .foregroundColor(store.palette.accent)
-                                        .padding(.horizontal, BrandSpacing.xs)
-                                        .padding(.vertical, BrandSpacing.xxs - 1)
-                                        .background(store.palette.accentMuted)
-                                        .clipShape(BrandShapes.pill)
+                            let isSelected = (selectedPortal?.projectPath.path == portal.projectPath.path)
+                            Button(action: {
+                                withAnimation(BrandMotion.fastSpring) {
+                                    store.selectedWorkspacePath = portal.projectPath.path
                                 }
-                                Text(portal.projectPath.path)
-                                    .font(.brandMonoMicro)
-                                    .foregroundColor(store.palette.textMuted)
-                                
-                                HStack(spacing: BrandSpacing.sm) {
-                                    Text("\(portal.enabledSkills.count) SKILLS INJECTED")
-                                        .font(.brandMonoBadge)
-                                        .foregroundColor(store.palette.accent)
-                                    Text("•").foregroundColor(store.palette.textMuted)
-                                    Text(".gemini & .claude linked")
-                                        .font(.brandCaption)
-                                        .foregroundColor(store.palette.textSecondary)
+                            }) {
+                                VStack(alignment: .leading, spacing: BrandSpacing.xxs) {
+                                    HStack {
+                                        Image(systemName: isSelected ? "folder.fill" : "folder")
+                                            .font(.system(size: 12))
+                                            .foregroundColor(isSelected ? store.palette.accent : store.palette.textMuted)
+                                        
+                                        Text(portal.projectPath.lastPathComponent)
+                                            .font(.brandHeadline)
+                                            .foregroundColor(isSelected ? store.palette.accent : store.palette.textPrimary)
+                                            .lineLimit(1)
+                                        
+                                        Spacer()
+                                        
+                                        Text("\(portal.enabledSkills.count)")
+                                            .font(.brandMonoMicro)
+                                            .foregroundColor(store.palette.accent)
+                                            .padding(.horizontal, 6)
+                                            .padding(.vertical, 2)
+                                            .background(store.palette.accentMuted)
+                                            .clipShape(BrandShapes.pill)
+                                    }
+                                    
+                                    Text(portal.projectPath.path)
+                                        .font(.brandMonoMicro)
+                                        .foregroundColor(store.palette.textMuted)
+                                        .lineLimit(1)
+                                        .truncationMode(.middle)
+                                        .padding(.leading, 18)
                                 }
+                                .padding(.horizontal, BrandSpacing.md)
+                                .padding(.vertical, BrandSpacing.sm + 2)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .contentShape(Rectangle())
+                                .background(isSelected ? store.palette.accentMuted.opacity(0.4) : Color.clear)
                             }
-                            .padding(BrandSpacing.md)
-                            .background(store.palette.background)
+                            .buttonStyle(.plain)
                             
-                            Divider().background(store.palette.border)
+                            Divider().background(store.palette.border.opacity(0.2))
                         }
+                    }
+                }
+            }
+        }
+        .frame(minWidth: 260, idealWidth: 300, maxWidth: 360)
+        .background(store.palette.background.opacity(0.5))
+    }
+    
+    // MARK: - Right Pane: Workspace Details & Configuration
+    
+    @ViewBuilder
+    private var workspaceDetailPane: some View {
+        if let portal = selectedPortal {
+            ScrollView {
+                VStack(alignment: .leading, spacing: BrandSpacing.lg) {
+                    workspaceHeader(for: portal)
+                    targetAgentsSection(for: portal)
+                    Divider().background(store.palette.border.opacity(0.3))
+                    skillsMatrixSection(for: portal)
+                }
+                .padding(BrandSpacing.lg)
+            }
+            .background(store.palette.background)
+        } else {
+            VStack(spacing: BrandSpacing.sm) {
+                Image(systemName: "point.3.filled.connected.trianglepath.dotted")
+                    .font(.system(size: 36))
+                    .foregroundColor(store.palette.textMuted.opacity(0.4))
+                Text("Select a Workspace")
+                    .font(.brandHeadline)
+                    .foregroundColor(store.palette.textSecondary)
+                Text("Choose a repository on the left to configure target agents and skills.")
+                    .font(.brandCaption)
+                    .foregroundColor(store.palette.textMuted)
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(store.palette.background)
+        }
+    }
+    
+    @ViewBuilder
+    private func workspaceHeader(for portal: ProjectPortal) -> some View {
+        HStack(alignment: .top) {
+            VStack(alignment: .leading, spacing: BrandSpacing.xxs) {
+                HStack(spacing: BrandSpacing.xs) {
+                    Image(systemName: "folder.fill")
+                        .font(.system(size: 16))
+                        .foregroundColor(store.palette.accent)
+                    Text(portal.projectPath.lastPathComponent)
+                        .font(.brandHeadline)
+                        .foregroundColor(store.palette.textPrimary)
+                    
+                    Text("PORTAL ACTIVE")
+                        .font(.brandMonoBadge)
+                        .foregroundColor(store.palette.accent)
+                        .padding(.horizontal, BrandSpacing.xs)
+                        .padding(.vertical, BrandSpacing.xxs - 1)
+                        .background(store.palette.accentMuted)
+                        .clipShape(BrandShapes.pill)
+                }
+                
+                Text(portal.projectPath.path)
+                    .font(.brandMonoMicro)
+                    .foregroundColor(store.palette.textMuted)
+            }
+            
+            Spacer()
+            
+            HStack(spacing: BrandSpacing.xs) {
+                Button(action: {
+                    NSWorkspace.shared.activateFileViewerSelecting([portal.projectPath])
+                }) {
+                    HStack(spacing: 4) {
+                        Image(systemName: "arrow.up.forward.app")
+                            .font(.system(size: 10))
+                        Text("Reveal in Finder")
+                            .font(.brandMonoMicro)
+                    }
+                    .foregroundColor(store.palette.textPrimary)
+                    .padding(.horizontal, BrandSpacing.xs + 2)
+                    .padding(.vertical, BrandSpacing.xxs + 2)
+                    .liquidGlassPill()
+                }
+                .buttonStyle(.plain)
+                
+                Button(action: {
+                    store.removeProjectPortal(portal)
+                }) {
+                    HStack(spacing: 4) {
+                        Image(systemName: "trash")
+                            .font(.system(size: 10))
+                        Text("Disconnect")
+                            .font(.brandMonoMicro)
+                    }
+                    .foregroundColor(store.palette.danger)
+                    .padding(.horizontal, BrandSpacing.xs + 2)
+                    .padding(.vertical, BrandSpacing.xxs + 2)
+                    .liquidGlassPill(tint: store.palette.danger)
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .padding(BrandSpacing.md)
+        .background(store.palette.card.opacity(0.4))
+        .clipShape(BrandShapes.card)
+    }
+    
+    @ViewBuilder
+    private func targetAgentsSection(for portal: ProjectPortal) -> some View {
+        VStack(alignment: .leading, spacing: BrandSpacing.sm) {
+            HStack {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("TARGET AGENTS")
+                        .font(.brandMonoBold)
+                        .foregroundColor(store.palette.textPrimary)
+                    Text("Which AI coding tools in this repository receive symlinks.")
+                        .font(.brandCaption)
+                        .foregroundColor(store.palette.textSecondary)
+                }
+                Spacer()
+                Text("\(portal.targetAgentIds.count) agents active")
+                    .font(.brandMonoMicro)
+                    .foregroundColor(store.palette.accent)
+            }
+            
+            // Search agents bar
+            HStack(spacing: BrandSpacing.xs) {
+                Image(systemName: "magnifyingglass")
+                    .font(.system(size: 11))
+                    .foregroundColor(store.palette.textMuted)
+                TextField("Search agents (claude, cursor, windsurf, codex, zed, openhands)...", text: $store.workspaceAgentFilterText)
+                    .textFieldStyle(.plain)
+                    .font(.brandCaption)
+                    .foregroundColor(store.palette.textPrimary)
+                if !store.workspaceAgentFilterText.isEmpty {
+                    Button(action: { store.workspaceAgentFilterText = "" }) {
+                        Image(systemName: "xmark.circle.fill")
+                            .font(.system(size: 11))
+                            .foregroundColor(store.palette.textMuted)
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            .padding(.horizontal, BrandSpacing.sm)
+            .padding(.vertical, BrandSpacing.xs)
+            .background(store.palette.card)
+            .clipShape(BrandShapes.pill)
+            
+            let displayedAgents: [AgentConfig] = {
+                let all = AgentRegistry.shared.agents
+                if !store.workspaceAgentFilterText.isEmpty {
+                    return all.filter {
+                        $0.displayName.localizedCaseInsensitiveContains(store.workspaceAgentFilterText) ||
+                        $0.id.localizedCaseInsensitiveContains(store.workspaceAgentFilterText) ||
+                        $0.sourceKind.localizedCaseInsensitiveContains(store.workspaceAgentFilterText)
+                    }
+                }
+                if store.workspaceShowAllAgents {
+                    return all
+                }
+                return all.filter { agent in
+                    prominentAgentIds.contains(agent.id) || portal.isAgentActive(agent.id)
+                }
+            }()
+            
+            FlowLayout(spacing: BrandSpacing.xs) {
+                ForEach(displayedAgents) { agent in
+                    let isEnabled = portal.isAgentActive(agent.id)
+                    let matchedTool = ToolTarget.from(agentId: agent.id) ?? ToolTarget(rawValue: agent.id)
+                    
+                    Button(action: {
+                        store.toggleAgentForWorkspace(agentId: agent.id, fallbackTool: matchedTool, workspaceURL: portal.projectPath)
+                    }) {
+                        HStack(spacing: 5) {
+                            Image(systemName: isEnabled ? "checkmark.circle.fill" : "circle")
+                                .font(.system(size: 11))
+                                .foregroundColor(isEnabled ? store.palette.accent : store.palette.textMuted)
+                            if let tool = matchedTool {
+                                Image(systemName: tool.sfSymbol)
+                                    .font(.system(size: 11))
+                            } else {
+                                Image(systemName: "cpu")
+                                    .font(.system(size: 11))
+                            }
+                            Text(agent.displayName)
+                                .font(.brandCaption)
+                        }
+                        .foregroundColor(isEnabled ? store.palette.textPrimary : store.palette.textSecondary)
+                        .padding(.horizontal, BrandSpacing.sm)
+                        .padding(.vertical, 6)
+                        .liquidGlassPill(tint: isEnabled ? store.palette.accent : nil)
+                    }
+                    .buttonStyle(.plain)
+                }
+                
+                if store.workspaceAgentFilterText.isEmpty {
+                    Button(action: {
+                        withAnimation(BrandMotion.fastSpring) {
+                            store.workspaceShowAllAgents.toggle()
+                        }
+                    }) {
+                        HStack(spacing: 4) {
+                            Image(systemName: store.workspaceShowAllAgents ? "chevron.up" : "ellipsis")
+                                .font(.system(size: 10, weight: .bold))
+                            Text(store.workspaceShowAllAgents ? "Show Less" : "+\(AgentRegistry.shared.agents.count - displayedAgents.count) More Agents")
+                                .font(.brandCaption)
+                        }
+                        .foregroundColor(store.palette.accent)
+                        .padding(.horizontal, BrandSpacing.sm)
+                        .padding(.vertical, 6)
+                        .liquidGlassPill()
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+        }
+    }
+    
+    @ViewBuilder
+    private func skillsMatrixSection(for portal: ProjectPortal) -> some View {
+        VStack(alignment: .leading, spacing: BrandSpacing.sm) {
+            HStack {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("SELECTIVE SKILLS INJECTION")
+                        .font(.brandMonoBold)
+                        .foregroundColor(store.palette.textPrimary)
+                    Text("Skills from your Armory to inject into this workspace.")
+                        .font(.brandCaption)
+                        .foregroundColor(store.palette.textSecondary)
+                }
+                Spacer()
+                Text("\(portal.enabledSkills.count) of \(store.skills.count) skills enabled")
+                    .font(.brandMonoMicro)
+                    .foregroundColor(store.palette.accent)
+            }
+            
+            // Search skills bar
+            HStack(spacing: BrandSpacing.xs) {
+                Image(systemName: "magnifyingglass")
+                    .font(.system(size: 11))
+                    .foregroundColor(store.palette.textMuted)
+                TextField("Filter skills by name or keyword...", text: $store.workspaceSkillFilterText)
+                    .textFieldStyle(.plain)
+                    .font(.brandCaption)
+                    .foregroundColor(store.palette.textPrimary)
+                if !store.workspaceSkillFilterText.isEmpty {
+                    Button(action: { store.workspaceSkillFilterText = "" }) {
+                        Image(systemName: "xmark.circle.fill")
+                            .font(.system(size: 11))
+                            .foregroundColor(store.palette.textMuted)
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            .padding(.horizontal, BrandSpacing.sm)
+            .padding(.vertical, BrandSpacing.xs)
+            .background(store.palette.card)
+            .clipShape(BrandShapes.pill)
+            
+            if store.skills.isEmpty {
+                Text("No skills available in Armory yet. Ingest skills from Discovery or Marketplace first.")
+                    .font(.brandCaption)
+                    .foregroundColor(store.palette.textMuted)
+                    .padding(.vertical, BrandSpacing.md)
+            } else {
+                let filteredSkills = store.skills.filter {
+                    store.workspaceSkillFilterText.isEmpty ||
+                    $0.name.localizedCaseInsensitiveContains(store.workspaceSkillFilterText) ||
+                    ($0.description?.localizedCaseInsensitiveContains(store.workspaceSkillFilterText) ?? false)
+                }
+                
+                FlowLayout(spacing: BrandSpacing.xs) {
+                    ForEach(filteredSkills) { skill in
+                        let isEnabled = portal.enabledSkills.contains(skill.name)
+                        Button(action: {
+                            store.toggleSkillForWorkspace(skillName: skill.name, workspaceURL: portal.projectPath)
+                        }) {
+                            HStack(spacing: 5) {
+                                Image(systemName: isEnabled ? "checkmark.circle.fill" : "circle")
+                                    .font(.system(size: 11))
+                                    .foregroundColor(isEnabled ? store.palette.accent : store.palette.textMuted)
+                                if let icon = skill.icon, !icon.isEmpty {
+                                    Image(systemName: icon)
+                                        .font(.system(size: 11))
+                                }
+                                Text(skill.name)
+                                    .font(.brandCaption)
+                            }
+                            .foregroundColor(isEnabled ? store.palette.textPrimary : store.palette.textSecondary)
+                            .padding(.horizontal, BrandSpacing.sm)
+                            .padding(.vertical, 6)
+                            .liquidGlassPill(tint: isEnabled ? store.palette.accent : nil)
+                        }
+                        .buttonStyle(.plain)
                     }
                 }
             }

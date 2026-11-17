@@ -88,6 +88,11 @@ public final class SyncEngine: @unchecked Sendable {
         var updatedConfigs: [String] = []
         var warnings: [String] = []
         
+        // If the workspace does not exist on this machine, gracefully skip without error
+        guard fileManager.fileExists(atPath: portal.projectPath.path) else {
+            return SyncResult(createdSymlinks: [], updatedConfigs: [], warnings: ["Workspace not present on this machine: \(portal.projectPath.path)"], errors: [])
+        }
+        
         let allSkills = Dictionary(uniqueKeysWithValues: hub.listArmorySkills().map { ($0.name, $0) })
         let allMCPs = Dictionary(uniqueKeysWithValues: hub.listArmoryMCPs().map { ($0.name, $0) })
         
@@ -96,18 +101,24 @@ public final class SyncEngine: @unchecked Sendable {
         
         var syncedDirs = Set<String>()
 
-        // For Antigravity (.gemini/skills in repo)
-        if portal.targetTools.contains(.antigravityGlobal) {
-            let repoAgyDir = portal.projectPath.appendingPathComponent(".gemini/skills")
-            syncSkillLinks(into: repoAgyDir, label: "\(portal.projectPath.lastPathComponent)/.gemini", selectedSkills: selectedSkills, createdLinks: &createdLinks)
-            syncedDirs.insert(".gemini/skills")
+        // Sync active tool targets configured for this portal
+        for target in portal.targetTools {
+            let relPath = target.relativeProjectSkillsDir
+            let targetDir = portal.projectPath.appendingPathComponent(relPath)
+            syncSkillLinks(into: targetDir, label: "\(portal.projectPath.lastPathComponent)/\(target.displayName)", selectedSkills: selectedSkills, createdLinks: &createdLinks)
+            syncedDirs.insert(relPath)
         }
         
-        // For Claude (.claude/skills in repo)
-        if portal.targetTools.contains(.claudeCode) {
-            let repoClaudeDir = portal.projectPath.appendingPathComponent(".claude/skills")
-            syncSkillLinks(into: repoClaudeDir, label: "\(portal.projectPath.lastPathComponent)/.claude", selectedSkills: selectedSkills, createdLinks: &createdLinks)
-            syncedDirs.insert(".claude/skills")
+        // Sync any active agent IDs configured for this portal (e.g. windsurf, zed, cline, etc.)
+        for agentId in portal.targetAgentIds {
+            if let agent = AgentRegistry.shared.agent(for: agentId) {
+                let relPath = agent.skillsDir
+                if !syncedDirs.contains(relPath) {
+                    let targetDir = portal.projectPath.appendingPathComponent(relPath)
+                    syncSkillLinks(into: targetDir, label: "\(portal.projectPath.lastPathComponent)/\(agent.displayName)", selectedSkills: selectedSkills, createdLinks: &createdLinks)
+                    syncedDirs.insert(relPath)
+                }
+            }
         }
 
         // Sync any existing project-level agent directories and suffixed profiles (e.g. .matilda, .claude-bilue, .agents)
@@ -186,24 +197,14 @@ public final class SyncEngine: @unchecked Sendable {
         
         var mcpServersDict: [String: Any] = (rootDict[rootKey] as? [String: Any]) ?? [:]
         
-        for mcp in mcps {
+        for rawMCP in mcps {
+            let mcp = MCPSecretVault.hydrateForRuntime(rawMCP)
             var item: [String: Any] = [
                 "command": mcp.command,
                 "args": mcp.args
             ]
             if let env = mcp.env, !env.isEmpty {
-                // Expand environment variables like ${GITHUB_TOKEN}
-                var expandedEnv: [String: String] = [:]
-                let processEnv = ProcessInfo.processInfo.environment
-                for (k, v) in env {
-                    var val = v
-                    if val.hasPrefix("${") && val.hasSuffix("}") {
-                        let envKey = String(val.dropFirst(2).dropLast(1))
-                        val = processEnv[envKey] ?? val
-                    }
-                    expandedEnv[k] = val
-                }
-                item["env"] = expandedEnv
+                item["env"] = env
             }
             mcpServersDict[mcp.name] = item
         }

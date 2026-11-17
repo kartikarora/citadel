@@ -45,19 +45,19 @@ public final class SkillDiscoveryEngine: @unchecked Sendable {
     }
     
     /// Recursively scans search roots for any folder containing a `SKILL.md`
-    public func discoverSkills(in roots: [URL]? = nil, maxDepth: Int = 5, includeBuiltin: Bool = false) -> [DiscoveredSkill] {
+    public func discoverSkills(in roots: [URL]? = nil, maxDepth: Int = 5, includeBuiltin: Bool = false, includeProjectShipped: Bool = false) -> [DiscoveredSkill] {
         let targets = roots ?? defaultScanRoots
         var results: [DiscoveredSkill] = []
         var visitedPaths = Set<String>()
         
         for root in targets {
-            scanDirectory(root, currentDepth: 0, maxDepth: maxDepth, includeBuiltin: includeBuiltin, results: &results, visitedPaths: &visitedPaths)
+            scanDirectory(root, currentDepth: 0, maxDepth: maxDepth, includeBuiltin: includeBuiltin, includeProjectShipped: includeProjectShipped, results: &results, visitedPaths: &visitedPaths)
         }
         
         return results.sorted { $0.name.localizedCompare($1.name) == .orderedAscending }
     }
     
-    private func scanDirectory(_ dir: URL, currentDepth: Int, maxDepth: Int, includeBuiltin: Bool, results: inout [DiscoveredSkill], visitedPaths: inout Set<String>) {
+    private func scanDirectory(_ dir: URL, currentDepth: Int, maxDepth: Int, includeBuiltin: Bool, includeProjectShipped: Bool = false, results: inout [DiscoveredSkill], visitedPaths: inout Set<String>) {
         if currentDepth > maxDepth { return }
         
         // Skip noise & heavyweight folders
@@ -85,6 +85,11 @@ public final class SkillDiscoveryEngine: @unchecked Sendable {
         }
         
         if let skillFile = skillFileURL {
+            // Check if this is a project-shipped or exportable repository skill
+            if !includeProjectShipped && isProjectShippedSkill(dir: dir) {
+                return
+            }
+            
             let isLink = (try? dir.resourceValues(forKeys: [.isSymbolicLinkKey]).isSymbolicLink) ?? false
             let kind = determineKind(for: dir)
             if !includeBuiltin && kind == "builtin" {
@@ -108,9 +113,74 @@ public final class SkillDiscoveryEngine: @unchecked Sendable {
         for sub in subdirs {
             var isDir: ObjCBool = false
             if fileManager.fileExists(atPath: sub.path, isDirectory: &isDir), isDir.boolValue {
-                scanDirectory(sub, currentDepth: currentDepth + 1, maxDepth: maxDepth, includeBuiltin: includeBuiltin, results: &results, visitedPaths: &visitedPaths)
+                scanDirectory(sub, currentDepth: currentDepth + 1, maxDepth: maxDepth, includeBuiltin: includeBuiltin, includeProjectShipped: includeProjectShipped, results: &results, visitedPaths: &visitedPaths)
             }
         }
+    }
+    
+    /// Identifies whether a directory contains a project-shipped, author-source, or exportable skill
+    /// (e.g. inside `skills/`, `src/skills/`, or repository root with package.json/Package.swift)
+    /// rather than an installed agent configuration directory.
+    public func isProjectShippedSkill(dir: URL) -> Bool {
+        let path = dir.path
+        
+        // 1. If it's located in an installed agent config directory (e.g. ~/.gemini, ~/.claude, .cursor/skills, .agents/skills)
+        // or inside ~/.citadel, it is an active user skill, not a project-shipped export.
+        if path.contains("/.citadel/") { return false }
+        
+        for agent in AgentRegistry.shared.agents {
+            let relSkillsDir = agent.skillsDir
+            // If the path ends with or contains the exact agent relative skills directory
+            if path.contains("/" + relSkillsDir) {
+                return false
+            }
+            if let dotBase = agent.globalSkillsBase?.relativeDotPath, dotBase != ".agents",
+               path.contains("/\(dotBase)/skills") || path.contains("/\(dotBase)-") {
+                return false
+            }
+        }
+        
+        // Also check universal .agents/skills or .agents/
+        if path.contains("/.agents/skills") || path.contains("/.agents/") {
+            return false
+        }
+        
+        // 2. Walk up parent directories to check if it lives inside a codebase repository
+        var current = dir.deletingLastPathComponent()
+        var foundRepoRoot: URL? = nil
+        let repoIndicators = [".git", "package.json", "Package.swift", "Cargo.toml", "pyproject.toml", "go.mod", "pom.xml"]
+        
+        for _ in 0..<5 {
+            if current.path == "/" || current.path == fileManager.homeDirectoryForCurrentUser.path {
+                break
+            }
+            for indicator in repoIndicators {
+                if fileManager.fileExists(atPath: current.appendingPathComponent(indicator).path) {
+                    foundRepoRoot = current
+                    break
+                }
+            }
+            if foundRepoRoot != nil { break }
+            current = current.deletingLastPathComponent()
+        }
+        
+        guard let repo = foundRepoRoot else {
+            return false
+        }
+        
+        // If it's inside a repo and NOT in a known dot-folder agent path (like .claude/, .gemini/, .cursor/),
+        // then it is a project-shipped/source skill (e.g. <repo>/skills/<name>, <repo>/plugins/<name>, or the repo itself).
+        let relativeToRepo = path.replacingOccurrences(of: repo.path + "/", with: "")
+        
+        // If it's in a hidden dot-folder at repo root (like .claude/skills, .gemini/skills, .agents/skills),
+        // that's a workspace-injected skill or agent folder, so not a shipped repo skill
+        if relativeToRepo.hasPrefix(".") {
+            return false
+        }
+        
+        // Any skill residing in a project repo under non-hidden directories (e.g. `skills/`, `src/`, `templates/`, or root)
+        // is considered a project-shipped skill!
+        return true
     }
     
     /// Ingests a discovered skill into ~/.citadel/skills and replaces original with symlink

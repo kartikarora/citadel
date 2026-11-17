@@ -285,23 +285,23 @@ public struct AgentRegistry: Sendable {
         // Match against known agent global detectDirs or project config folder segments (including suffixed profiles like .claude-bilue)
         for agent in agents {
             for dir in agent.detectDirs(home: home, xdgConfig: xdgConfig, env: env) {
-                if p == dir.path || p.hasPrefix(dir.path + "/") || p.hasPrefix(dir.path + "-") {
+                if p == dir.path || p.hasPrefix(dir.path + "/") || p.hasPrefix(dir.path + "-") || p.hasPrefix(dir.path) {
                     return agent.sourceKind
                 }
             }
             if let dotBase = agent.globalSkillsBase?.relativeDotPath, dotBase != ".agents",
-               p.contains("/\(dotBase)/") || p.contains("/\(dotBase)-") {
+               p.contains("/\(dotBase)/") || p.contains("/\(dotBase)-") || p.contains("/\(dotBase)") {
                 return agent.sourceKind
             }
             for base in agent.detectBases {
                 if let dotBase = base.relativeDotPath, dotBase != ".agents",
-                   p.contains("/\(dotBase)/") || p.contains("/\(dotBase)-") {
+                   p.contains("/\(dotBase)/") || p.contains("/\(dotBase)-") || p.contains("/\(dotBase)") {
                     return agent.sourceKind
                 }
             }
             if let topFolder = agent.skillsDir.split(separator: "/").first, topFolder.hasPrefix("."),
                topFolder != ".agents",
-               p.contains("/\(topFolder)/") || p.contains("/\(topFolder)-") {
+               p.contains("/\(topFolder)/") || p.contains("/\(topFolder)-") || p.contains("/\(topFolder)") {
                 return agent.sourceKind
             }
         }
@@ -407,7 +407,8 @@ public struct AgentRegistry: Sendable {
         let prefix = "\(baseName)-"
         return children.filter { child in
             let name = child.lastPathComponent
-            guard name.hasPrefix(prefix), name.count > prefix.count else { return false }
+            // Match standard profile format baseName-* (e.g. .claude-work) or wildcard suffix baseName* (e.g. .claude_work, .claude2)
+            guard name != baseName, (name.hasPrefix(prefix) || name.hasPrefix(baseName)) else { return false }
             var isDir: ObjCBool = false
             return fileManager.fileExists(atPath: child.path, isDirectory: &isDir) && isDir.boolValue
         }
@@ -447,5 +448,10 @@ public struct AgentRegistry: Sendable {
             }
         }
         return results
+    }
+
+    /// Looks up an AgentConfig by its id or sourceKind
+    public func agent(for identifier: String) -> AgentConfig? {
+        agents.first { $0.id == identifier || $0.sourceKind == identifier }
     }
 }

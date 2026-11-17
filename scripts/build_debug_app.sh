@@ -5,12 +5,27 @@ APP_NAME="Citadel"
 BUILD_DIR=".build/out/Products/Debug"
 APP_BUNDLE="${BUILD_DIR}/${APP_NAME}.app"
 
+echo "==> Compiling CitadelApp with SwiftPM..."
+swift build --product CitadelApp
+
+# Detect compiled binary location
+SWIFT_BIN=".build/debug/CitadelApp"
+if [ ! -f "${SWIFT_BIN}" ]; then
+    SWIFT_BIN="$(swift build --show-bin-path)/CitadelApp"
+fi
+
+# Ensure BUILD_DIR exists
+mkdir -p "${BUILD_DIR}"
+if [ "${SWIFT_BIN}" != "${BUILD_DIR}/CitadelApp" ] && [ -f "${SWIFT_BIN}" ]; then
+    cp -f "${SWIFT_BIN}" "${BUILD_DIR}/CitadelApp" || true
+fi
+
 echo "==> Packaging ${APP_BUNDLE}..."
 rm -rf "${APP_BUNDLE}"
 mkdir -p "${APP_BUNDLE}/Contents/MacOS"
 mkdir -p "${APP_BUNDLE}/Contents/Resources"
 
-cp "${BUILD_DIR}/CitadelApp" "${APP_BUNDLE}/Contents/MacOS/${APP_NAME}"
+cp "${SWIFT_BIN}" "${APP_BUNDLE}/Contents/MacOS/${APP_NAME}"
 chmod +x "${APP_BUNDLE}/Contents/MacOS/${APP_NAME}"
 
 if [ -f "branding/AppIcon.icns" ]; then

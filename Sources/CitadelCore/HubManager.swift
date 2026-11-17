@@ -291,13 +291,14 @@ public final class HubManager: @unchecked Sendable {
         return results.sorted { $0.name.localizedCompare($1.name) == .orderedAscending }
     }
     
-    /// Saves or updates an MCP server into the Armory
+    /// Saves or updates an MCP server into the Armory, stripping plaintext tokens to the Keychain
     public func saveMCP(_ server: MCPServer) throws {
         try fileManager.createDirectory(at: mcpsURL, withIntermediateDirectories: true)
         let file = mcpsURL.appendingPathComponent("\(server.name).json")
+        let sanitized = MCPSecretVault.sanitizeForSync(server)
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
-        let data = try encoder.encode(server)
+        let data = try encoder.encode(sanitized)
         try data.write(to: file)
     }
     

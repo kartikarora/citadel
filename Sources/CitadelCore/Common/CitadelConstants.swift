@@ -12,13 +12,14 @@ public enum CitadelConstants {
             "citadel-bot-\(deviceUsername)@github.com"
         }
         public static let defaultRepoName = "citadel-sync"
-        public static let gitignoreRules = ".DS_Store\n*.swp\n.env*\n.keys/\n"
+        public static let gitignoreRules = ".DS_Store\n*.swp\n.env*\n.keys/\nsecrets.json\n*.secret*\n"
     }
     
     // MARK: - Security & Keychain Services
     public enum Keychain {
         public static let authService = "sh.citadel.auth"
         public static let signingService = "sh.citadel.signing"
+        public static let mcpSecretsService = "sh.citadel.mcp-secrets"
     }
     
     // MARK: - File System & Paths

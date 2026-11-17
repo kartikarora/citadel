@@ -364,6 +364,9 @@ public struct SkillDetailView: View {
         .onAppear {
             refreshPackageNodes()
         }
+        .onChange(of: skill.id) { _ in
+            refreshPackageNodes()
+        }
         .onChange(of: skill.path) { _ in
             refreshPackageNodes()
         }

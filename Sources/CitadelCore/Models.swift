@@ -37,6 +37,31 @@ public enum ToolTarget: String, CaseIterable, Codable, Sendable {
         case .junie: return "bolt.shield.fill"
         }
     }
+    
+    public var relativeProjectSkillsDir: String {
+        switch self {
+        case .antigravityGlobal, .antigravityPlugin: return ".gemini/skills"
+        case .claudeCode, .claudeDesktop: return ".claude/skills"
+        case .cursor: return ".cursor/skills"
+        case .codex: return ".agents/skills"
+        case .androidStudio: return ".android-studio/skills"
+        case .githubCopilot: return ".github/skills"
+        case .junie: return ".junie/skills"
+        }
+    }
+    
+    /// Maps from an AgentConfig identifier or sourceKind to a ToolTarget if known
+    public static func from(agentId: String) -> ToolTarget? {
+        let lower = agentId.lowercased()
+        if lower.contains("claude") { return .claudeCode }
+        if lower.contains("antigravity") || lower.contains("gemini") { return .antigravityGlobal }
+        if lower.contains("cursor") { return .cursor }
+        if lower.contains("codex") || lower == "agents" || lower == "universal" { return .codex }
+        if lower.contains("android-studio") { return .androidStudio }
+        if lower.contains("copilot") { return .githubCopilot }
+        if lower.contains("junie") { return .junie }
+        return nil
+    }
 }
 
 /// A skill representing an instruction set or bundle of capabilities
@@ -96,19 +121,124 @@ public struct MCPServer: Identifiable, Codable, Sendable, Hashable {
 
 /// Project-level Portal link
 public struct ProjectPortal: Identifiable, Codable, Sendable, Hashable {
-    public var id: String { projectPath.path }
+    public var id: String { citadelId ?? projectPath.path }
+    public var citadelId: String?
+    public var gitRemote: String?
+    public var gitRootHash: String?
     public let projectPath: URL
     public var enabledSkills: [String]
     public var enabledMCPs: [String]
     public var targetTools: [ToolTarget]
+    public var targetAgentIds: [String]
     public var createdAt: Date
     
-    public init(projectPath: URL, enabledSkills: [String] = [], enabledMCPs: [String] = [], targetTools: [ToolTarget] = [.antigravityGlobal, .claudeCode], createdAt: Date = Date()) {
+    enum CodingKeys: String, CodingKey {
+        case id
+        case citadelId
+        case gitRemote
+        case gitRootHash
+        case projectPath
+        case portablePath
+        case enabledSkills
+        case enabledMCPs
+        case targetTools
+        case targetAgentIds
+        case createdAt
+    }
+    
+    public init(
+        projectPath: URL,
+        citadelId: String? = nil,
+        gitRemote: String? = nil,
+        gitRootHash: String? = nil,
+        enabledSkills: [String] = [],
+        enabledMCPs: [String] = [],
+        targetTools: [ToolTarget] = [.antigravityGlobal, .claudeCode],
+        targetAgentIds: [String]? = nil,
+        createdAt: Date = Date()
+    ) {
         self.projectPath = projectPath
+        
+        // Auto-detect git stamp and fingerprint if available
+        if let stampedId = citadelId ?? PortablePath.getOrStampGitPortalId(in: projectPath) {
+            self.citadelId = stampedId
+        } else {
+            self.citadelId = "cproj_" + UUID().uuidString.lowercased().replacingOccurrences(of: "-", with: "").prefix(16)
+        }
+        
+        let fp = PortablePath.gitFingerprint(in: projectPath)
+        self.gitRemote = gitRemote ?? fp.remote
+        self.gitRootHash = gitRootHash ?? fp.rootHash
+        
         self.enabledSkills = enabledSkills
         self.enabledMCPs = enabledMCPs
         self.targetTools = targetTools
+        if let agentIds = targetAgentIds {
+            self.targetAgentIds = agentIds
+        } else {
+            // Seed from targetTools if not specified
+            self.targetAgentIds = targetTools.map { $0.rawValue }
+        }
         self.createdAt = createdAt
+    }
+    
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        
+        self.citadelId = try container.decodeIfPresent(String.self, forKey: .citadelId)
+            ?? container.decodeIfPresent(String.self, forKey: .id)
+        self.gitRemote = try container.decodeIfPresent(String.self, forKey: .gitRemote)
+        self.gitRootHash = try container.decodeIfPresent(String.self, forKey: .gitRootHash)
+        
+        // Resolve projectPath from portablePath or projectPath URL
+        if let port = try container.decodeIfPresent(String.self, forKey: .portablePath) {
+            self.projectPath = PortablePath.fromPortable(port)
+        } else if let rawURL = try? container.decode(URL.self, forKey: .projectPath) {
+            // If projectPath was an absolute URL like file:///Users/foo/bar, convert through portable expansion
+            let p = rawURL.path
+            self.projectPath = PortablePath.fromPortable(PortablePath.toPortable(p))
+        } else if let strPath = try? container.decode(String.self, forKey: .projectPath) {
+            self.projectPath = PortablePath.fromPortable(strPath)
+        } else {
+            self.projectPath = URL(fileURLWithPath: "/")
+        }
+        
+        self.enabledSkills = try container.decodeIfPresent([String].self, forKey: .enabledSkills) ?? []
+        self.enabledMCPs = try container.decodeIfPresent([String].self, forKey: .enabledMCPs) ?? []
+        self.targetTools = try container.decodeIfPresent([ToolTarget].self, forKey: .targetTools) ?? []
+        let decodedAgentIds = try container.decodeIfPresent([String].self, forKey: .targetAgentIds)
+        if let explicit = decodedAgentIds, !explicit.isEmpty {
+            self.targetAgentIds = explicit
+        } else {
+            self.targetAgentIds = self.targetTools.map { $0.rawValue }
+        }
+        self.createdAt = try container.decodeIfPresent(Date.self, forKey: .createdAt) ?? Date()
+    }
+    
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(citadelId, forKey: .citadelId)
+        try container.encode(gitRemote, forKey: .gitRemote)
+        try container.encode(gitRootHash, forKey: .gitRootHash)
+        
+        // Save portable representation (~/...) so it cleanly transfers across computers
+        let portable = PortablePath.toPortable(projectPath.path)
+        try container.encode(portable, forKey: .portablePath)
+        try container.encode(projectPath, forKey: .projectPath)
+        
+        try container.encode(enabledSkills, forKey: .enabledSkills)
+        try container.encode(enabledMCPs, forKey: .enabledMCPs)
+        try container.encode(targetTools, forKey: .targetTools)
+        try container.encode(targetAgentIds, forKey: .targetAgentIds)
+        try container.encode(createdAt, forKey: .createdAt)
+    }
+    
+    /// Checks if a given agent identifier is targeted for this workspace portal
+    public func isAgentActive(_ agentId: String) -> Bool {
+        if targetAgentIds.contains(agentId) { return true }
+        if let tool = ToolTarget.from(agentId: agentId), targetTools.contains(tool) { return true }
+        if let directTool = ToolTarget(rawValue: agentId), targetTools.contains(directTool) { return true }
+        return false
     }
 }
 
