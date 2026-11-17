@@ -365,6 +365,7 @@ func runAllCitadelTests() async throws {
     expect(readMarker?.deviceUsername == "testuser", "readSyncMarker reads correct device username")
     
     // Test OnboardingViewModel existing sync repo re-use prompt state with arbitrary repo name (custom-dotfiles)
+    let preTestRemote = RemoteSyncManager.shared.getRemoteURL()
     let reuseTestDefaults = UserDefaults(suiteName: "citadel_test_reuse_repo_\(UUID().uuidString)")!
     let reuseOnboardingVM = OnboardingViewModel(testDefaults: reuseTestDefaults)
     expect(reuseOnboardingVM.showReuseRepoPrompt == false, "Initial showReuseRepoPrompt is false")
@@ -385,7 +386,6 @@ func runAllCitadelTests() async throws {
     expect(reuseOnboardingVM.showReuseRepoPrompt == false, "reuseExistingSyncRepo sets remote and dismisses prompt")
     
     // Test RemoteSyncManager remote origin setting and removal
-    let preTestRemote = RemoteSyncManager.shared.getRemoteURL()
     let testRepoURL = "https://github.com/testuser/citadel-sync.git"
     let setRes = RemoteSyncManager.shared.setRemoteURL(testRepoURL)
     expect(setRes.success == true, "RemoteSyncManager.setRemoteURL succeeds")
