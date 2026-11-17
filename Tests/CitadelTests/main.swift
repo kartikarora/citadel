@@ -385,6 +385,7 @@ func runAllCitadelTests() async throws {
     expect(reuseOnboardingVM.showReuseRepoPrompt == false, "reuseExistingSyncRepo sets remote and dismisses prompt")
     
     // Test RemoteSyncManager remote origin setting and removal
+    let preTestRemote = RemoteSyncManager.shared.getRemoteURL()
     let testRepoURL = "https://github.com/testuser/citadel-sync.git"
     let setRes = RemoteSyncManager.shared.setRemoteURL(testRepoURL)
     expect(setRes.success == true, "RemoteSyncManager.setRemoteURL succeeds")
@@ -401,9 +402,14 @@ func runAllCitadelTests() async throws {
     expect(clearedStatus.isConfigured == false, "RemoteSyncStatus reports isConfigured == false after removal")
     expect(clearedStatus.remoteURL == nil, "RemoteSyncStatus reports nil remoteURL after removal")
     
-    // Verify SettingsViewModel synchronously receives active status
+    // Verify SettingsViewModel synchronously receives active status when cleared
     let settingsVM = SettingsViewModel()
     expect(settingsVM.remoteStatus.isConfigured == false, "SettingsViewModel immediately initializes remoteStatus synchronously")
+    
+    // Restore pre-test remote if one was originally configured on the user's system
+    if let original = preTestRemote {
+        _ = RemoteSyncManager.shared.setRemoteURL(original)
+    }
     
     // Test non-blocking background discovery execution
     let asyncDiscoveryReport = await MultiverseDiscoveryEngine.shared.runFullDiscoveryAsync(workspaceRoots: [])
