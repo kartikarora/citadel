@@ -24,6 +24,7 @@ public struct CitadelCLI: AsyncParsableCommand {
             PullCommand.self,
             StatusCommand.self,
             DocsCommand.self,
+            RollbackCommand.self,
             AppCommand.self
         ],
         defaultSubcommand: ListCommand.self
@@ -623,6 +624,28 @@ struct DocsCommand: ParsableCommand {
         process.executableURL = URL(fileURLWithPath: "/usr/bin/open")
         process.arguments = [targetURL.path]
         try? process.run()
+    }
+}
+
+struct RollbackCommand: ParsableCommand {
+    static let configuration = CommandConfiguration(
+        commandName: "rollback",
+        abstract: "Emergency decouple: Replaces all symlinks across AI tools with independent directory copies."
+    )
+    
+    func run() throws {
+        print("🏰 Running Citadel Emergency Rollback & Materialization...")
+        let res = try RollbackEngine.shared.ejectAndMaterialize()
+        print("✅ Materialized \(res.materializedSkills.count) skills into standalone folders.")
+        if !res.removedSymlinks.isEmpty {
+            print("⚠️ Removed \(res.removedSymlinks.count) dangling links.")
+        }
+        if !res.warnings.isEmpty {
+            for warn in res.warnings {
+                print("  Notice: \(warn)")
+            }
+        }
+        print("🎉 AI agents are now completely decoupled from Citadel.")
     }
 }
 
