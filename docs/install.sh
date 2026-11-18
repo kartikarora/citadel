@@ -29,9 +29,9 @@ mkdir -p "${INSTALL_DIR}"
 
 # Determine latest release version
 echo "==> Resolving latest Citadel release..."
-RELEASE_TAG=$(curl -sSL "https://api.github.com/repos/${REPO}/releases/latest" | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/' || echo "0.1.0")
+RELEASE_TAG=$(curl -sSL "https://api.github.com/repos/${REPO}/releases/latest" | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/' || echo "0.1.1")
 if [ -z "${RELEASE_TAG}" ]; then
-    RELEASE_TAG="0.1.0"
+    RELEASE_TAG="0.1.1"
 fi
 CLEAN_VERSION="${RELEASE_TAG#v}"
 

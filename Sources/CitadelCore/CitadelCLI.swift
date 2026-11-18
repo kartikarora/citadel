@@ -686,7 +686,7 @@ struct AppCommand: ParsableCommand {
         
         print("📦 Downloading latest Citadel macOS DMG release from GitHub...")
         let tempDMG = FileManager.default.temporaryDirectory.appendingPathComponent("Citadel-macOS.dmg")
-        let releaseURL = "https://github.com/kartikarora/citadel/releases/latest/download/Citadel-0.1.0-macOS-arm64.dmg"
+        let releaseURL = "https://github.com/kartikarora/citadel/releases/latest/download/Citadel-0.1.1-macOS-arm64.dmg"
         
         let curlProc = Process()
         curlProc.executableURL = URL(fileURLWithPath: "/usr/bin/curl")

@@ -58,7 +58,7 @@ Citadel stores your canonical skills and MCP configs in `~/.citadel` and manages
 
 ### 1. Download the Native Frontend
 Grab the latest release from [citadel.kartikarora.me](https://citadel.kartikarora.me/):
-- Download `Citadel-0.1.0-macOS-arm64.dmg`
+- Download `Citadel-0.1.1-macOS-arm64.dmg`
 - Drag `Citadel.app` to `/Applications`
 - Run the 5-step onboarding wizard to set up your directory, SSH signing key, theme, and initial scan.
 
