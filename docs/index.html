@@ -10,12 +10,14 @@
   <meta property="og:url" content="https://citadel.kartikarora.me/">
   <meta property="og:description" content="One canonical home for all AI skills with zero-overhead symlinks and zero-knowledge private cloud sync.">
   
-  <!-- Mandatory Brand CDN Assets v2.0.0 -->
-  <link href="https://distribute.kartikarora.me/css/kartikarora.2.0.0.css" rel="stylesheet">
+  <!-- Explicit Versioned Brand Assets -->
+  <link href="https://distribute.kartikarora.me/css/kartikarora-v2.0.0.css" rel="stylesheet">
+  <script src="https://distribute.kartikarora.me/js/kartikarora-v2.0.0.js" defer></script>
+
+  <!-- Curated Fonts: Chivo Display & Body, JetBrains Mono Code -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Albert+Sans:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet">
-  <script src="https://distribute.kartikarora.me/js/kartikarora.2.0.0.js" defer></script>
+  <link href="https://fonts.googleapis.com/css2?family=Chivo:ital,wght@0,300..900;1,400&family=JetBrains+Mono:wght@400;500;600;700;800&family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet">
 
   <!-- Favicons and App Icons -->
   <link rel="icon" href="./favicon.ico" sizes="48x48">
@@ -24,15 +26,46 @@
   <link rel="manifest" href="./site.webmanifest">
 
   <style>
-    /* Citadel Custom Theme Refinements on top of Brand v2.0.0 */
+    /* Tokyo Neo-Brutalist Electric Brand Refinements (v2.0.0) */
     :root {
-      /* Ensure high-contrast readable accents in light mode: #57606a provides 6.39:1 on #fff, 5.48:1 on sunken card */
-      --color-ink-faint: #57606a;
+      --color-signal: #0084c7;
+      --color-signal-secondary: #e6b800;
+      --color-paper: #ffffff;
+      --color-paper-alt: #f4f6fa;
+      --color-paper-sunken: #eaeef4;
+      --color-ink: #070a10;
+      --color-ink-muted: #4b5563;
+      --color-ink-faint: #6b7280;
+      --color-rule: #d0d7de;
+      --color-rule-strong: #1f242c;
+      --color-focus: #0084c7;
+      
+      --shadow-block: 4px 4px 0px var(--color-rule-strong);
+      --shadow-block-secondary: 4px 4px 0px var(--color-signal-secondary);
+      --shadow-block-highlight: 6px 6px 0px var(--color-signal);
+      
+      --font-display: 'Chivo', system-ui, sans-serif;
+      --font-sans: 'Chivo', system-ui, sans-serif;
+      --font-mono: 'JetBrains Mono', ui-monospace, monospace;
     }
 
     @media (prefers-color-scheme: dark) {
       :root {
-        --color-ink-faint: #8c9ba5;
+        --color-signal: #00f0ff;
+        --color-signal-secondary: #ffe600;
+        --color-paper: #070a10;
+        --color-paper-alt: #121824;
+        --color-paper-sunken: #04060a;
+        --color-ink: #f0f4f8;
+        --color-ink-muted: #94a3b8;
+        --color-ink-faint: #64748b;
+        --color-rule: #1e293b;
+        --color-rule-strong: #334155;
+        --color-focus: #00f0ff;
+
+        --shadow-block: 4px 4px 0px var(--color-rule-strong);
+        --shadow-block-secondary: 4px 4px 0px var(--color-signal-secondary);
+        --shadow-block-highlight: 6px 6px 0px var(--color-signal);
       }
     }
 
@@ -53,12 +86,11 @@
     }
 
     header.nav {
-      border-bottom: 1px solid var(--color-rule);
+      border-bottom: 2px solid var(--color-rule-strong);
       background: var(--color-paper);
       position: sticky;
       top: 0;
       z-index: 50;
-      backdrop-filter: blur(12px);
     }
 
     .nav-container {
@@ -74,10 +106,12 @@
       display: flex;
       align-items: center;
       gap: var(--space-xs);
-      font-weight: 700;
+      font-family: var(--font-display);
+      font-weight: 900;
       font-size: var(--text-lead);
       color: var(--color-ink);
       text-decoration: none;
+      letter-spacing: -0.03em;
     }
 
     .brand-logo-img {
@@ -85,7 +119,7 @@
       height: 28px;
       aspect-ratio: 1 / 1;
       display: block;
-      filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.15));
+      filter: drop-shadow(2px 2px 0px var(--color-rule-strong));
     }
 
     .hero-badge-wrap {
@@ -93,27 +127,27 @@
       align-items: center;
       gap: var(--space-xs);
       background: var(--color-paper-alt);
-      border: 1px solid var(--color-rule);
+      border: 2px solid var(--color-rule-strong);
       padding: 6px 14px 6px 8px;
-      border-radius: 9999px;
+      border-radius: 4px;
       margin-bottom: var(--space-md);
-      box-shadow: 0 2px 8px -2px rgba(0, 0, 0, 0.06);
+      box-shadow: 3px 3px 0px var(--color-rule-strong);
     }
 
     .hero-badge-logo {
-      width: 28px;
-      height: 28px;
-      border-radius: 6px;
+      width: 24px;
+      height: 24px;
+      border-radius: 4px;
       display: block;
-      filter: drop-shadow(0 2px 6px rgba(99, 102, 241, 0.25));
     }
 
     .hero-badge-text {
+      font-family: var(--font-mono);
       font-size: var(--text-xs);
-      font-weight: 600;
-      letter-spacing: 0.04em;
+      font-weight: 700;
+      letter-spacing: 0.02em;
       text-transform: uppercase;
-      color: var(--color-ink-muted);
+      color: var(--color-ink);
     }
 
     .hero-badge-dot {
@@ -123,40 +157,44 @@
     .spec-card-logo-watermark {
       display: flex;
       align-items: center;
-      gap: 10px;
+      gap: 12px;
       margin-bottom: 12px;
       padding-bottom: 10px;
-      border-bottom: 1px dashed var(--color-rule);
+      border-bottom: 2px solid var(--color-rule-strong);
     }
 
     .spec-card-logo-img {
       width: 36px;
       height: 36px;
-      filter: drop-shadow(0 4px 10px rgba(99, 102, 241, 0.3));
+      border: 2px solid var(--color-rule-strong);
+      border-radius: 4px;
+      box-shadow: 2px 2px 0px var(--color-signal);
     }
 
     .spec-card-logo-title {
-      font-weight: 600;
+      font-family: var(--font-display);
+      font-weight: 900;
       color: var(--color-ink);
       font-size: var(--text-xs);
-      font-family: var(--font-sans);
-      letter-spacing: 0.02em;
+      letter-spacing: -0.02em;
     }
 
     .spec-card-logo-sub {
-      color: var(--color-ink-faint);
-      font-size: 10px;
+      color: var(--color-ink-muted);
+      font-size: 11px;
       font-family: var(--font-mono);
     }
 
     .version-pill {
       font-family: var(--font-mono);
       font-size: var(--text-xs);
-      color: var(--color-ink-muted);
-      background: var(--color-paper-alt);
-      border: 1px solid var(--color-rule);
-      padding: 2px 6px;
-      border-radius: var(--border-radius-sm);
+      color: var(--color-ink);
+      background: var(--color-signal-secondary);
+      border: 2px solid var(--color-rule-strong);
+      padding: 2px 8px;
+      border-radius: 3px;
+      font-weight: 700;
+      box-shadow: 2px 2px 0px var(--color-rule-strong);
     }
 
     .nav-links {
@@ -172,11 +210,78 @@
       color: var(--color-ink-muted);
       font-size: var(--text-sm);
       text-decoration: none;
-      transition: color var(--transition);
+      font-weight: 600;
+      transition: color 0.15s ease;
     }
 
     .nav-links a:hover {
       color: var(--color-signal);
+    }
+
+    /* Tokyo Neo-Brutalist Kinetic Buttons */
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-family: var(--font-mono);
+      font-weight: 700;
+      text-decoration: none;
+      border-radius: 4px;
+      padding: 10px 18px;
+      font-size: var(--text-sm);
+      border: 2px solid var(--color-rule-strong);
+      cursor: pointer;
+      transition: transform 0.12s ease, box-shadow 0.12s ease;
+    }
+
+    .btn-primary {
+      background: var(--color-signal);
+      color: #000000;
+      box-shadow: 4px 4px 0px var(--color-signal-secondary);
+    }
+
+    .btn-primary:hover {
+      transform: translate(-2px, -2px);
+      box-shadow: 6px 6px 0px var(--color-signal-secondary);
+      color: #000000;
+    }
+
+    .btn-outline {
+      background: var(--color-paper-alt);
+      color: var(--color-ink);
+      box-shadow: 4px 4px 0px var(--color-rule-strong);
+    }
+
+    .btn-outline:hover {
+      transform: translate(-2px, -2px);
+      box-shadow: 6px 6px 0px var(--color-signal);
+      color: var(--color-ink);
+    }
+
+    .btn-sm {
+      padding: 6px 12px;
+      font-size: var(--text-xs);
+    }
+
+    /* Tokyo Neo-Brutalist Headline Highlight */
+    .tokyo-highlight {
+      background: var(--color-signal);
+      color: #000000;
+      padding: 0 6px;
+      display: inline-block;
+      box-shadow: 3px 3px 0px var(--color-signal-secondary);
+      line-height: 1.15;
+    }
+
+    /* Tokyo Punch Contrast Card */
+    .tokyo-card-contrast {
+      border: 2px solid var(--color-signal-secondary) !important;
+      box-shadow: 6px 6px 0px var(--color-signal-secondary) !important;
+    }
+
+    .tokyo-card-contrast:hover {
+      transform: translate(-2px, -2px);
+      box-shadow: 8px 8px 0px var(--color-signal) !important;
     }
 
     /* HERO - Visual Fold Budget (1280x800 compliant) */
@@ -191,14 +296,15 @@
     }
 
     .hero-title {
+      font-family: var(--font-display);
       font-size: var(--text-display);
-      font-weight: 700;
-      line-height: 1.15;
-      letter-spacing: -0.02em;
+      font-weight: 900;
+      line-height: 1.1;
+      letter-spacing: -0.04em;
       color: var(--color-ink);
       margin-bottom: var(--space-sm);
       text-wrap: balance;
-      max-width: 20ch;
+      max-width: 22ch;
     }
 
     .hero-summary {
@@ -211,24 +317,32 @@
 
     .hero-actions {
       display: flex;
-      gap: var(--space-xs);
+      gap: var(--space-sm);
       flex-wrap: wrap;
     }
 
     .spec-card {
-      background: var(--color-paper-sunken);
-      border: 1px solid var(--color-rule);
-      border-radius: var(--border-radius);
+      background: var(--color-paper-alt);
+      border: 2px solid var(--color-rule-strong);
+      border-radius: 6px;
       padding: var(--space-md);
       font-family: var(--font-mono);
       font-size: var(--text-xs);
       line-height: 1.7;
+      box-shadow: var(--shadow-block);
+      transition: transform 0.15s ease, box-shadow 0.15s ease;
+    }
+
+    .spec-card:hover {
+      transform: translate(-2px, -2px);
+      box-shadow: 6px 6px 0px var(--color-signal);
     }
 
     .spec-header {
       font-size: var(--text-xs);
-      color: var(--color-ink-muted);
-      border-bottom: 1px solid var(--color-rule);
+      font-weight: 700;
+      color: var(--color-ink);
+      border-bottom: 2px solid var(--color-rule-strong);
       padding-bottom: var(--space-xs);
       margin-bottom: var(--space-xs);
       display: flex;
@@ -246,26 +360,29 @@
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
       gap: var(--space-md);
-      border-top: 1px solid var(--color-rule);
-      border-bottom: 1px solid var(--color-rule);
+      border-top: 2px solid var(--color-rule-strong);
+      border-bottom: 2px solid var(--color-rule-strong);
       padding: var(--space-md) 0;
     }
 
     .telemetry-metric {
-      padding: 0 var(--space-xs);
+      padding: var(--space-xs);
+      border-left: 3px solid var(--color-signal);
     }
 
     .telemetry-value {
       font-family: var(--font-mono);
       font-size: var(--text-display-s);
-      font-weight: 700;
+      font-weight: 800;
       color: var(--color-signal);
       font-variant-numeric: tabular-nums;
       line-height: 1.1;
     }
 
     .telemetry-label {
+      font-family: var(--font-mono);
       font-size: var(--text-xs);
+      font-weight: 600;
       color: var(--color-ink-muted);
       margin-top: var(--space-xs);
       text-transform: lowercase;
@@ -285,14 +402,23 @@
       position: sticky;
       top: 5rem;
       height: fit-content;
+      border: 2px solid var(--color-rule-strong);
+      background: var(--color-paper-alt);
+      padding: var(--space-sm);
+      border-radius: 6px;
+      box-shadow: 3px 3px 0px var(--color-rule-strong);
     }
 
     .toc-label {
       font-size: var(--text-xs);
-      font-weight: 600;
-      color: var(--color-ink-faint);
+      font-weight: 800;
+      color: var(--color-ink);
       margin-bottom: var(--space-xs);
       font-family: var(--font-mono);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      border-bottom: 2px solid var(--color-rule-strong);
+      padding-bottom: 4px;
     }
 
     .sidebar-toc ul {
@@ -307,7 +433,8 @@
       font-size: var(--text-sm);
       color: var(--color-ink-muted);
       text-decoration: none;
-      transition: color var(--transition);
+      font-weight: 500;
+      transition: color 0.12s ease;
     }
 
     .sidebar-toc li a:hover {
@@ -320,18 +447,21 @@
     }
 
     h2 {
+      font-family: var(--font-display);
       font-size: var(--text-section);
-      font-weight: 700;
-      letter-spacing: -0.02em;
+      font-weight: 900;
+      letter-spacing: -0.03em;
       color: var(--color-ink);
       margin-bottom: var(--space-xs);
       text-wrap: balance;
-      max-width: 30ch;
+      max-width: 32ch;
     }
 
     h3 {
+      font-family: var(--font-display);
       font-size: var(--text-title);
-      font-weight: 600;
+      font-weight: 800;
+      letter-spacing: -0.02em;
       color: var(--color-ink);
       margin-top: var(--space-md);
       margin-bottom: var(--space-xs);
@@ -346,24 +476,28 @@
       text-wrap: pretty;
     }
 
+    /* Sunken CLI Terminals (.tokyo-cli-pill / code-terminal) */
     .code-terminal {
       background: var(--color-paper-sunken);
-      border: 1px solid var(--color-rule);
-      border-radius: var(--border-radius);
+      border: 2px solid var(--color-rule-strong);
+      border-left: 4px solid var(--color-signal);
+      border-radius: 4px;
       margin: var(--space-sm) 0 var(--space-md);
       font-family: var(--font-mono);
       font-size: var(--text-xs);
       overflow: hidden;
+      box-shadow: 3px 3px 0px var(--color-rule-strong);
     }
 
     .code-terminal-bar {
       padding: var(--space-xs) var(--space-sm);
       background: var(--color-paper-alt);
-      border-bottom: 1px solid var(--color-rule);
+      border-bottom: 2px solid var(--color-rule-strong);
       display: flex;
       justify-content: space-between;
       font-size: var(--text-xs);
-      color: var(--color-ink-muted);
+      font-weight: 700;
+      color: var(--color-ink);
     }
 
     .code-terminal-body {
@@ -373,7 +507,8 @@
     }
 
     .terminal-prompt {
-      color: var(--color-ink-faint);
+      color: var(--color-signal);
+      font-weight: 700;
       margin-right: var(--space-xs);
       user-select: none;
     }
@@ -384,16 +519,25 @@
       margin-bottom: var(--space-xs);
     }
 
+    .terminal-comment {
+      color: var(--color-ink-faint);
+    }
+
     .brand-statement {
       font-family: var(--font-sans);
       font-size: var(--text-lead);
       line-height: 1.4;
-      font-weight: 600;
+      font-weight: 700;
       color: var(--color-ink);
-      padding-left: var(--space-md);
-      border-left: 3px solid var(--color-signal);
+      padding: var(--space-sm) var(--space-md);
+      border-left: 4px solid var(--color-signal);
+      background: var(--color-paper-alt);
+      border-top: 2px solid var(--color-rule-strong);
+      border-right: 2px solid var(--color-rule-strong);
+      border-bottom: 2px solid var(--color-rule-strong);
+      box-shadow: 4px 4px 0px var(--color-rule-strong);
       margin: var(--space-lg) 0;
-      max-width: 52ch;
+      max-width: 54ch;
       font-style: normal;
     }
 
@@ -401,40 +545,46 @@
       width: 100%;
       border-collapse: collapse;
       margin: var(--space-md) 0;
-      border: 1px solid var(--color-rule);
-      border-radius: var(--border-radius);
+      border: 2px solid var(--color-rule-strong);
+      border-radius: 4px;
       overflow: hidden;
+      box-shadow: 4px 4px 0px var(--color-rule-strong);
     }
 
     table.spec-table th, table.spec-table td {
       padding: var(--space-xs) var(--space-sm);
       text-align: left;
       font-size: var(--text-sm);
-      border-bottom: 1px solid var(--color-rule);
+      border-bottom: 2px solid var(--color-rule-strong);
     }
 
     table.spec-table th {
       background: var(--color-paper-alt);
       color: var(--color-ink);
-      font-weight: 600;
+      font-family: var(--font-mono);
+      font-weight: 700;
       font-size: var(--text-xs);
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
     }
 
     table.spec-table td code {
       font-family: var(--font-mono);
       font-size: var(--text-xs);
-      background: var(--color-paper-alt);
-      padding: 2px 5px;
-      border-radius: var(--border-radius-sm);
-      border: 1px solid var(--color-rule);
+      background: var(--color-paper-sunken);
+      padding: 2px 6px;
+      border-radius: 3px;
+      border: 1px solid var(--color-rule-strong);
+      color: var(--color-signal);
     }
 
     footer {
-      border-top: 1px solid var(--color-rule);
+      border-top: 2px solid var(--color-rule-strong);
       padding: var(--space-lg) var(--space-md);
       font-size: var(--text-xs);
       color: var(--color-ink-muted);
       background: var(--color-paper-alt);
+      font-family: var(--font-mono);
     }
 
     .footer-inner {
@@ -466,6 +616,7 @@
         animation-iteration-count: 1 !important;
         transition-duration: 0.01ms !important;
         scroll-behavior: auto !important;
+        transform: none !important;
       }
     }
   </style>
@@ -501,7 +652,7 @@
         <img src="./logo.svg" alt="Citadel Logo" class="hero-badge-logo" width="28" height="28">
         <span class="hero-badge-text">Citadel Engine <span class="hero-badge-dot">&bull;</span> Sovereign Hub</span>
       </div>
-      <h1 class="hero-title">Keep your AI skills and MCP servers in one place.</h1>
+      <h1 class="hero-title">Keep your AI skills and MCP servers in <span class="tokyo-highlight">one place</span>.</h1>
       <p class="hero-summary">Claude, Antigravity, and Cursor expect configs in conflicting directories. Citadel maintains your skills centrally in <code>~/.citadel</code> and symlinks them into every tool with zero overhead.</p>
       <div class="hero-actions">
         <a href="#install" class="btn btn-primary">Download Citadel for Mac</a>
@@ -509,7 +660,7 @@
       </div>
     </div>
 
-    <div class="spec-card">
+    <div class="spec-card tokyo-card-contrast">
       <div class="spec-card-logo-watermark">
         <img src="./logo.svg" alt="Citadel Keystone" class="spec-card-logo-img" width="36" height="36">
         <div>

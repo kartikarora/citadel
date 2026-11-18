@@ -47,25 +47,25 @@ public extension Font {
     }
 
     static var brandDisplay: Font {
-        brandCustom("AlbertSans-Bold", size: 26, fallback: .system(size: 26, weight: .bold))
+        brandCustom("Chivo-Black", size: 26, fallback: .system(size: 26, weight: .black))
     }
     static var brandTitle: Font {
-        brandCustom("AlbertSans-Bold", size: 19, fallback: .system(size: 19, weight: .bold))
+        brandCustom("Chivo-Bold", size: 19, fallback: .system(size: 19, weight: .bold))
     }
     static var brandHeadline: Font {
-        brandCustom("AlbertSans-SemiBold", size: 15, fallback: .system(size: 15, weight: .semibold))
+        brandCustom("Chivo-SemiBold", size: 15, fallback: .system(size: 15, weight: .semibold))
     }
     static var brandBody: Font {
-        brandCustom("AlbertSans-Regular", size: 13, fallback: .system(size: 13, weight: .regular))
+        brandCustom("Chivo-Regular", size: 13, fallback: .system(size: 13, weight: .regular))
     }
     static var brandBodyBold: Font {
-        brandCustom("AlbertSans-Bold", size: 13, fallback: .system(size: 13, weight: .bold))
+        brandCustom("Chivo-Bold", size: 13, fallback: .system(size: 13, weight: .bold))
     }
     static var brandCaption: Font {
-        brandCustom("AlbertSans-Regular", size: 11, fallback: .system(size: 11, weight: .regular))
+        brandCustom("Chivo-Regular", size: 11, fallback: .system(size: 11, weight: .regular))
     }
     static var brandCaptionBold: Font {
-        brandCustom("AlbertSans-SemiBold", size: 11, fallback: .system(size: 11, weight: .semibold))
+        brandCustom("Chivo-SemiBold", size: 11, fallback: .system(size: 11, weight: .semibold))
     }
     static var brandMono: Font {
         brandCustom("JetBrainsMono-Regular", size: 13, fallback: .system(size: 13, weight: .regular, design: .monospaced))
@@ -119,18 +119,19 @@ public extension Color {
 }
 
 public struct BrandSemanticColors: Sendable {
-    public let paper = Color.brandDynamic(light: "#ffffff", dark: "#000000")
-    public let paperAlt = Color.brandDynamic(light: "#f6f8fa", dark: "#0a0a0a")
+    public let paper = Color.brandDynamic(light: "#ffffff", dark: "#070a10")
+    public let paperAlt = Color.brandDynamic(light: "#f4f6fa", dark: "#121824")
     public let ink = Color.brandDynamic(light: "#0d1117", dark: "#f0f4f8")
     public let inkMuted = Color.brandDynamic(light: "#57606a", dark: "#8c9ba5")
     public let inkFaint = Color.brandDynamic(light: "#8d96a0", dark: "#64748b")
-    public let signal = Color.brandDynamic(light: "#0066cc", dark: "#818cf8")
-    public let signalWash = Color.brandDynamic(light: "#ebf5ff", dark: "#1e1b4b")
+    public let signal = Color.brandDynamic(light: "#0084c7", dark: "#00f0ff")
+    public let signalSecondary = Color.brandDynamic(light: "#e6b800", dark: "#ffe600")
+    public let signalWash = Color.brandDynamic(light: "#ebf5ff", dark: "#04060a")
     public let rule = Color.brandDynamic(light: "#d0d7de", dark: "#1f242c")
-    public let ruleStrong = Color.brandDynamic(light: "#afb8c1", dark: "#30363d")
+    public let ruleStrong = Color.brandDynamic(light: "#1f242c", dark: "#334155")
     public let success = Color.brandDynamic(light: "#2da44e", dark: "#3fb950")
     public let danger = Color.brandDynamic(light: "#cf222e", dark: "#f85149")
-    public let warning = Color.brandDynamic(light: "#bf8700", dark: "#d29922")
+    public let warning = Color.brandDynamic(light: "#e6b800", dark: "#ffe600")
 }
 
 public extension Color {
