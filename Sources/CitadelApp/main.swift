@@ -521,12 +521,6 @@ struct NativeBlurBackground: NSViewRepresentable {
 
 // MARK: - Main Application Store
 
-/// Wraps a value so it can be handed to a detached background task. Only use for values that
-/// are not touched concurrently (e.g. a closure that runs exclusively on the background thread).
-struct UncheckedSendable<T>: @unchecked Sendable {
-    let value: T
-}
-
 struct SyncConflictInfo: Identifiable {
     let id = UUID()
     let message: String
@@ -678,30 +672,29 @@ final class CitadelStore: ObservableObject {
     
     /// Runs blocking filesystem/git work on a background thread, shows a progress bar while it runs,
     /// then hops back to the main actor to refresh state and call `onComplete`.
-    func runInBackground<T>(
+    func runInBackground<T: Sendable>(
         _ label: String,
         refreshAfter: Bool = true,
         rescanAfter: Bool = false,
-        work: @escaping () throws -> T,
-        onComplete: ((Result<T, Error>) -> Void)? = nil
+        work: @escaping @Sendable () throws -> T,
+        onComplete: (@MainActor @Sendable (Result<T, Error>) -> Void)? = nil
     ) {
-        let job = UncheckedSendable(value: work)
-        let completion = UncheckedSendable(value: onComplete)
+        let job = work
+        let completion = onComplete
         activeOperation = label
         activeOperationError = nil
         Task.detached(priority: .userInitiated) {
             let result: Result<T, Error>
-            do { result = .success(try job.value()) } catch { result = .failure(error) }
-            let boxed = UncheckedSendable(value: result)
+            do { result = .success(try job()) } catch { result = .failure(error) }
             await MainActor.run {
                 self.activeOperation = nil
-                if case .failure(let err) = boxed.value {
+                if case .failure(let err) = result {
                     self.activeOperationError = "\(label.replacingOccurrences(of: "...", with: "")) failed: \(err.localizedDescription)"
                     DispatchQueue.main.asyncAfter(deadline: .now() + 5) { self.activeOperationError = nil }
                 }
                 if refreshAfter { self.refresh() }
                 if rescanAfter { self.scanFilesystem() }
-                completion.value?(boxed.value)
+                completion?(result)
             }
         }
     }
@@ -952,30 +945,26 @@ final class CitadelStore: ObservableObject {
     }
     
     func ingestSkill(_ skill: DiscoveredSkill) {
-        let item = UncheckedSendable(value: skill)
         runInBackground("Ingesting \(skill.name)...", rescanAfter: true, work: {
-            try SkillDiscoveryEngine.shared.ingest(skill: item.value)
+            try SkillDiscoveryEngine.shared.ingest(skill: skill)
         })
     }
     
     func unifySkillGroup(_ group: SkillGroup) {
-        let item = UncheckedSendable(value: group)
         runInBackground("Unifying \(group.name)...", rescanAfter: true, work: {
-            _ = try SkillGroupManager.shared.unifyGroup(item.value)
+            _ = try SkillGroupManager.shared.unifyGroup(group)
         })
     }
     
     func ingestMCP(_ mcp: DiscoveredMCP) {
-        let item = UncheckedSendable(value: mcp)
         runInBackground("Importing MCP \(mcp.name)...", work: {
-            try MultiverseDiscoveryEngine.shared.ingestMCP(item.value)
+            try MultiverseDiscoveryEngine.shared.ingestMCP(mcp)
         })
     }
     
     func connectWorkspacePortal(_ ws: DiscoveredWorkspace) {
-        let item = UncheckedSendable(value: ws)
         runInBackground("Connecting portal \(ws.name)...", rescanAfter: true, work: {
-            try MultiverseDiscoveryEngine.shared.connectWorkspaceAsPortal(item.value)
+            try MultiverseDiscoveryEngine.shared.connectWorkspaceAsPortal(ws)
             _ = try SyncEngine.shared.syncAll()
             HubManager.shared.gitCommit(message: "chore(sync): connect workspace portal")
         })
