@@ -8,7 +8,7 @@ public struct LiquidGlassModifier: ViewModifier {
     public let blurMaterial: Material
 
     public init(
-        cornerRadius: CGFloat = BrandCornerRadius.lg,
+        cornerRadius: CGFloat = BrandCornerRadius.md,
         tint: Color? = nil,
         material: Material = .ultraThinMaterial
     ) {
@@ -20,34 +20,27 @@ public struct LiquidGlassModifier: ViewModifier {
     public func body(content: Content) -> some View {
         let isDark = colorScheme == .dark
         let shape = RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+        let strokeColor = tint ?? (isDark ? Color(red: 51/255, green: 65/255, blue: 85/255) : Color(red: 31/255, green: 36/255, blue: 44/255))
+        let shadowColor = isDark ? Color(red: 0, green: 0, blue: 0, opacity: 0.8) : Color(red: 31/255, green: 36/255, blue: 44/255, opacity: 0.35)
 
         content
             .background {
                 ZStack {
                     shape.fill(blurMaterial)
                     if let tint = tint {
-                        shape.fill(tint.opacity(isDark ? 0.12 : 0.06))
+                        shape.fill(tint.opacity(isDark ? 0.15 : 0.08))
                     } else {
-                        shape.fill(Color.brand.signalWash.opacity(isDark ? 0.35 : 0.15))
+                        shape.fill(isDark ? Color(red: 18/255, green: 24/255, blue: 36/255).opacity(0.85) : Color(red: 244/255, green: 246/255, blue: 250/255).opacity(0.85))
                     }
-                    shape.strokeBorder(
-                        LinearGradient(
-                            colors: isDark
-                                ? [Color.white.opacity(0.24), Color.white.opacity(0.06), Color.white.opacity(0.02)]
-                                : [Color.white.opacity(0.85), Color.black.opacity(0.08), Color.black.opacity(0.04)],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        ),
-                        lineWidth: 1
-                    )
+                    shape.strokeBorder(strokeColor, lineWidth: 2)
                 }
             }
             .clipShape(shape)
             .shadow(
-                color: Color.black.opacity(isDark ? 0.35 : 0.08),
-                radius: 16,
-                x: 0,
-                y: 8
+                color: shadowColor,
+                radius: 0,
+                x: 4,
+                y: 4
             )
     }
 }
@@ -63,34 +56,29 @@ public struct LiquidGlassPillModifier: ViewModifier {
     public func body(content: Content) -> some View {
         let isDark = colorScheme == .dark
         let capsule = Capsule()
+        let strokeColor = tint ?? (isDark ? Color(red: 51/255, green: 65/255, blue: 85/255) : Color(red: 31/255, green: 36/255, blue: 44/255))
+        let shadowColor = tint != nil
+            ? (tint == Color(red: 255/255, green: 230/255, blue: 0/255) || tint == Color(red: 230/255, green: 184/255, blue: 0/255) ? Color(red: 255/255, green: 230/255, blue: 0/255, opacity: 0.6) : strokeColor.opacity(0.4))
+            : (isDark ? Color.black.opacity(0.7) : Color(red: 31/255, green: 36/255, blue: 44/255, opacity: 0.25))
 
         content
             .background {
                 ZStack {
                     capsule.fill(.ultraThinMaterial)
                     if let tint = tint {
-                        capsule.fill(tint.opacity(isDark ? 0.18 : 0.10))
+                        capsule.fill(tint.opacity(isDark ? 0.20 : 0.12))
                     } else {
-                        capsule.fill(Color.brand.signalWash.opacity(isDark ? 0.40 : 0.20))
+                        capsule.fill(isDark ? Color(red: 18/255, green: 24/255, blue: 36/255).opacity(0.75) : Color(red: 244/255, green: 246/255, blue: 250/255).opacity(0.75))
                     }
-                    capsule.strokeBorder(
-                        LinearGradient(
-                            colors: isDark
-                                ? [Color.white.opacity(0.30), Color.white.opacity(0.08), Color.white.opacity(0.02)]
-                                : [Color.white.opacity(0.95), Color.black.opacity(0.10), Color.black.opacity(0.04)],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        ),
-                        lineWidth: 1
-                    )
+                    capsule.strokeBorder(strokeColor, lineWidth: 2)
                 }
             }
             .clipShape(capsule)
             .shadow(
-                color: Color.black.opacity(isDark ? 0.28 : 0.06),
-                radius: 12,
-                x: 0,
-                y: 4
+                color: shadowColor,
+                radius: 0,
+                x: 3,
+                y: 3
             )
     }
 }

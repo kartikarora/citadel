@@ -86,29 +86,30 @@ public extension Color {
 }
 
 public struct BrandSemanticColors: Sendable {
-    public let canvas = Color.brandDynamic(light: "#ffffff", dark: "#000000")
-    public let surface = Color.brandDynamic(light: "#f6f8fa", dark: "#0a0a0a")
-    public let surfaceSunken = Color.brandDynamic(light: "#eaeef2", dark: "#050505")
-    public let card = Color.brandDynamic(light: "#ffffff", dark: "#0a0a0a")
+    public let canvas = Color.brandDynamic(light: "#ffffff", dark: "#070a10")
+    public let surface = Color.brandDynamic(light: "#f4f6fa", dark: "#121824")
+    public let surfaceSunken = Color.brandDynamic(light: "#eaeef4", dark: "#04060a")
+    public let card = Color.brandDynamic(light: "#ffffff", dark: "#121824")
     public let ink = Color.brandDynamic(light: "#0d1117", dark: "#f0f4f8")
     public let inkMuted = Color.brandDynamic(light: "#57606a", dark: "#8c9ba5")
-    public let inkFaint = Color.brandDynamic(light: "#8d96a0", dark: "#8c9ba5")
-    public let signal = Color.brandDynamic(light: "#0066cc", dark: "#818cf8")
-    public let signalHover = Color.brandDynamic(light: "#0052a3", dark: "#a5b4fc")
-    public let signalInk = Color.brandDynamic(light: "#ffffff", dark: "#000000")
-    public let signalWash = Color.brandDynamic(light: "0x1A0066CC", dark: "0x26818CF8")
+    public let inkFaint = Color.brandDynamic(light: "#8d96a0", dark: "#64748b")
+    public let signal = Color.brandDynamic(light: "#0084c7", dark: "#00f0ff")
+    public let signalHover = Color.brandDynamic(light: "#0070a8", dark: "#33f3ff")
+    public let signalSecondary = Color.brandDynamic(light: "#e6b800", dark: "#ffe600")
+    public let signalInk = Color.brandDynamic(light: "#ffffff", dark: "#070a10")
+    public let signalWash = Color.brandDynamic(light: "#ebf5ff", dark: "#04060a")
     public let rule = Color.brandDynamic(light: "#d0d7de", dark: "#1f242c")
-    public let ruleStrong = Color.brandDynamic(light: "#afb8c1", dark: "#30363d")
+    public let ruleStrong = Color.brandDynamic(light: "#1f242c", dark: "#334155")
     public let success = Color.brandDynamic(light: "#2da44e", dark: "#3fb950")
     public let danger = Color.brandDynamic(light: "#cf222e", dark: "#f85149")
-    public let warning = Color.brandDynamic(light: "#bf8700", dark: "#d29922")
+    public let warning = Color.brandDynamic(light: "#e6b800", dark: "#ffe600")
 }
 
 public extension Color {
     @MainActor static let brand = BrandSemanticColors()
 }
 
-// MARK: - Liquid Glass Surface & Material System (v2.0.0)
+// MARK: - Tokyo Neo-Brutalist Electric Surface System (v2.0.0)
 
 public struct LiquidGlassModifier: ViewModifier {
     @Environment(\.colorScheme) private var colorScheme
@@ -117,7 +118,7 @@ public struct LiquidGlassModifier: ViewModifier {
     public let blurMaterial: Material
 
     public init(
-        cornerRadius: CGFloat = BrandCornerRadius.lg,
+        cornerRadius: CGFloat = BrandCornerRadius.md,
         tint: Color? = nil,
         material: Material = .ultraThinMaterial
     ) {
@@ -129,34 +130,27 @@ public struct LiquidGlassModifier: ViewModifier {
     public func body(content: Content) -> some View {
         let isDark = colorScheme == .dark
         let shape = RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+        let strokeColor = tint ?? (isDark ? Color.brandDynamic(light: "#1f242c", dark: "#334155") : Color.brandDynamic(light: "#1f242c", dark: "#334155"))
+        let shadowColor = isDark ? Color(red: 0, green: 0, blue: 0, opacity: 0.8) : Color(red: 31/255, green: 36/255, blue: 44/255, opacity: 0.35)
 
         content
             .background {
                 ZStack {
                     shape.fill(blurMaterial)
                     if let tint = tint {
-                        shape.fill(tint.opacity(isDark ? 0.12 : 0.06))
+                        shape.fill(tint.opacity(isDark ? 0.15 : 0.08))
                     } else {
-                        shape.fill(Color.brand.signalWash.opacity(isDark ? 0.35 : 0.15))
+                        shape.fill(isDark ? Color(red: 18/255, green: 24/255, blue: 36/255).opacity(0.85) : Color(red: 244/255, green: 246/255, blue: 250/255).opacity(0.85))
                     }
-                    shape.strokeBorder(
-                        LinearGradient(
-                            colors: isDark
-                                ? [Color.white.opacity(0.24), Color.white.opacity(0.06), Color.white.opacity(0.02)]
-                                : [Color.white.opacity(0.85), Color.black.opacity(0.08), Color.black.opacity(0.04)],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        ),
-                        lineWidth: 1
-                    )
+                    shape.strokeBorder(strokeColor, lineWidth: 2)
                 }
             }
             .clipShape(shape)
             .shadow(
-                color: Color.black.opacity(isDark ? 0.35 : 0.08),
-                radius: 16,
-                x: 0,
-                y: 8
+                color: shadowColor,
+                radius: 0,
+                x: 4,
+                y: 4
             )
     }
 }
@@ -172,34 +166,29 @@ public struct LiquidGlassPillModifier: ViewModifier {
     public func body(content: Content) -> some View {
         let isDark = colorScheme == .dark
         let capsule = Capsule()
+        let strokeColor = tint ?? (isDark ? Color(red: 51/255, green: 65/255, blue: 85/255) : Color(red: 31/255, green: 36/255, blue: 44/255))
+        let shadowColor = tint != nil 
+            ? (tint == Color(red: 255/255, green: 230/255, blue: 0/255) || tint == Color(red: 230/255, green: 184/255, blue: 0/255) ? Color(red: 255/255, green: 230/255, blue: 0/255, opacity: 0.6) : strokeColor.opacity(0.4))
+            : (isDark ? Color.black.opacity(0.7) : Color(red: 31/255, green: 36/255, blue: 44/255, opacity: 0.25))
 
         content
             .background {
                 ZStack {
                     capsule.fill(.ultraThinMaterial)
                     if let tint = tint {
-                        capsule.fill(tint.opacity(isDark ? 0.14 : 0.08))
+                        capsule.fill(tint.opacity(isDark ? 0.20 : 0.12))
                     } else {
-                        capsule.fill(Color.brand.signalWash.opacity(isDark ? 0.3 : 0.12))
+                        capsule.fill(isDark ? Color(red: 18/255, green: 24/255, blue: 36/255).opacity(0.75) : Color(red: 244/255, green: 246/255, blue: 250/255).opacity(0.75))
                     }
-                    capsule.strokeBorder(
-                        LinearGradient(
-                            colors: isDark
-                                ? [Color.white.opacity(0.3), Color.white.opacity(0.08)]
-                                : [Color.white.opacity(0.9), Color.black.opacity(0.06)],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        ),
-                        lineWidth: 1
-                    )
+                    capsule.strokeBorder(strokeColor, lineWidth: 2)
                 }
             }
             .clipShape(capsule)
             .shadow(
-                color: Color.black.opacity(isDark ? 0.28 : 0.06),
-                radius: 12,
-                x: 0,
-                y: 4
+                color: shadowColor,
+                radius: 0,
+                x: 3,
+                y: 3
             )
     }
 }
@@ -3049,10 +3038,10 @@ struct HeaderChrome: View {
                     Text("SYNC ALL")
                         .font(.brandMonoBadge)
                 }
-                .foregroundColor(store.palette.textPrimary)
+                .foregroundColor(store.palette.accentSecondary)
                 .padding(.horizontal, BrandSpacing.md)
                 .padding(.vertical, BrandSpacing.xs)
-                .liquidGlassPill(tint: store.palette.accent)
+                .liquidGlassPill(tint: store.palette.accentSecondary)
             }
             .buttonStyle(.plain)
             .disabled(store.isSyncing)
