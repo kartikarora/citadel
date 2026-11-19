@@ -478,15 +478,15 @@ fileprivate struct PackageNodeRow: View {
     
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            Button(action: {
+            Button {
                 if node.isDirectory {
-                    withAnimation(.easeInOut(duration: 0.15)) {
+                    withAnimation(.easeInOut(duration: 0.2)) {
                         isExpanded.toggle()
                     }
                 } else {
                     onSelectFile(node)
                 }
-            }) {
+            } label: {
                 HStack(spacing: 5) {
                     // Indentation
                     if level > 0 {
@@ -527,7 +527,7 @@ fileprivate struct PackageNodeRow: View {
                         Color.clear
                     }
                 }
-                .clipShape(BrandShapes.sm)
+                .clipShape(RoundedRectangle(cornerRadius: BrandCornerRadius.sm, style: .continuous))
             }
             .buttonStyle(.plain)
             

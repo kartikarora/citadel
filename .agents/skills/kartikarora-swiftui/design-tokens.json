@@ -1,0 +1,97 @@
+{
+  "$schema": "https://json.schemastore.org/design-tokens.json",
+  "name": "@kartikarora Brand Design Tokens",
+  "version": "2.0.0",
+  "description": "Single Source of Truth (SSOT) for the @kartikarora design system across Web (SCSS) and Native (Jetpack Compose / Compose Multiplatform).",
+  "color": {
+    "light": {
+      "paper":        { "value": "#ffffff", "hex": "#ffffff", "role": "background", "desc": "Base canvas background" },
+      "paper-alt":    { "value": "#f6f8fa", "hex": "#f6f8fa", "role": "surfaceVariant", "desc": "Elevated cards, wells, panels" },
+      "paper-sunken": { "value": "#eaeef2", "hex": "#eaeef2", "role": "surfaceContainerLowest", "desc": "Code blocks, inputs, sunken wells" },
+      "card":         { "value": "#ffffff", "hex": "#ffffff", "role": "surface", "desc": "Card surface" },
+      "ink":          { "value": "#0d1117", "hex": "#0d1117", "role": "onBackground", "desc": "Primary high-contrast text and headings" },
+      "ink-muted":    { "value": "#57606a", "hex": "#57606a", "role": "onSurfaceVariant", "desc": "Secondary text, subtitles, metadata" },
+      "ink-faint":    { "value": "#8d96a0", "hex": "#8d96a0", "role": "tertiary", "desc": "Disabled, borders, subtle text" },
+      "rule":         { "value": "rgba(31, 35, 40, 0.12)", "hex": "#d0d7de", "role": "outlineVariant", "desc": "Hairline borders and rules" },
+      "rule-strong":  { "value": "rgba(31, 35, 40, 0.24)", "hex": "#afb8c1", "role": "outline", "desc": "Active borders and dividers" },
+      "signal":       { "value": "#0066cc", "hex": "#0066cc", "role": "primary", "desc": "Interactive accent signal (Precision Cobalt)" },
+      "signal-hover": { "value": "#0052a3", "hex": "#0052a3", "role": "primaryHover", "desc": "Hover state for signal" },
+      "signal-wash":  { "value": "rgba(0, 102, 204, 0.10)", "hex": "0x1A0066CC", "role": "primaryContainer", "desc": "Translucent signal wash" },
+      "signal-ink":   { "value": "#ffffff", "hex": "#ffffff", "role": "onPrimary", "desc": "High-contrast text on signal fill" },
+      "focus":        { "value": "#0066cc", "hex": "#0066cc", "role": "focus", "desc": "Instant accessibility focus ring" },
+      "shadow":       { "value": "rgba(31, 35, 40, 0.08)", "hex": "#1f232814", "role": "shadow", "desc": "Card elevation shadow" },
+      "shadow-hover": { "value": "rgba(31, 35, 40, 0.12)", "hex": "#1f23281f", "role": "shadowHover", "desc": "Card hover elevation shadow" },
+      "glow":         { "value": "rgba(0, 102, 204, 0.10)", "hex": "0x1A0066CC", "role": "glow", "desc": "Cobalt glow" },
+      "success":      { "value": "#2da44e", "hex": "#2da44e", "role": "success", "desc": "Success indicators and badges" },
+      "danger":       { "value": "#cf222e", "hex": "#cf222e", "role": "error", "desc": "Danger/error alerts and badges" },
+      "warning":      { "value": "#bf8700", "hex": "#bf8700", "role": "warning", "desc": "Warning indicators and badges" }
+    },
+    "dark": {
+      "paper":        { "value": "#000000", "hex": "#000000", "role": "background", "desc": "Pure Black canvas (Studio)" },
+      "paper-alt":    { "value": "#0a0a0a", "hex": "#0a0a0a", "role": "surfaceVariant", "desc": "Elevated surface in studio" },
+      "paper-sunken": { "value": "#050505", "hex": "#050505", "role": "surfaceContainerLowest", "desc": "Sunken code blocks in studio" },
+      "card":         { "value": "#0a0a0a", "hex": "#0a0a0a", "role": "surface", "desc": "Card surface in dark" },
+      "ink":          { "value": "#f0f4f8", "hex": "#f0f4f8", "role": "onBackground", "desc": "Bone white primary text" },
+      "ink-muted":    { "value": "#8c9ba5", "hex": "#8c9ba5", "role": "onSurfaceVariant", "desc": "Slate secondary text in dark" },
+      "ink-faint":    { "value": "#8c9ba5", "hex": "#8c9ba5", "role": "tertiary", "desc": "Subtle / disabled in dark" },
+      "rule":         { "value": "rgba(255, 255, 255, 0.08)", "hex": "#1f242c", "role": "outlineVariant", "desc": "Hairline borders in dark" },
+      "rule-strong":  { "value": "rgba(255, 255, 255, 0.16)", "hex": "#30363d", "role": "outline", "desc": "Active borders in dark" },
+      "signal":       { "value": "#818cf8", "hex": "#818cf8", "role": "primary", "desc": "Electric Indigo interactive signal in dark" },
+      "signal-hover": { "value": "#a5b4fc", "hex": "#a5b4fc", "role": "primaryHover", "desc": "Hover state for signal in dark" },
+      "signal-wash":  { "value": "rgba(129, 140, 248, 0.15)", "hex": "0x26818CF8", "role": "primaryContainer", "desc": "Translucent signal wash in dark" },
+      "signal-ink":   { "value": "#000000", "hex": "#000000", "role": "onPrimary", "desc": "High-contrast text on signal fill in dark" },
+      "focus":        { "value": "#818cf8", "hex": "#818cf8", "role": "focus", "desc": "Instant focus ring in dark" },
+      "shadow":       { "value": "rgba(0, 0, 0, 0.60)", "hex": "#00000099", "role": "shadow", "desc": "Shadow in dark" },
+      "shadow-hover": { "value": "rgba(129, 140, 248, 0.20)", "hex": "#818cf833", "role": "shadowHover", "desc": "Hover shadow in dark" },
+      "glow":         { "value": "rgba(129, 140, 248, 0.10)", "hex": "0x1A818CF8", "role": "glow", "desc": "Electric indigo glow in dark" },
+      "success":      { "value": "#3fb950", "hex": "#3fb950", "role": "success", "desc": "Success in dark" },
+      "danger":       { "value": "#f85149", "hex": "#f85149", "role": "error", "desc": "Danger in dark" },
+      "warning":      { "value": "#d29922", "hex": "#d29922", "role": "warning", "desc": "Warning in dark" }
+    }
+  },
+  "space": {
+    "2xs": { "rem": "0.25rem", "px": 4,  "dp": 4 },
+    "xs":  { "rem": "0.5rem",  "px": 8,  "dp": 8 },
+    "sm":  { "rem": "1.0rem",  "px": 16, "dp": 16 },
+    "md":  { "rem": "1.5rem",  "px": 24, "dp": 24 },
+    "lg":  { "rem": "2.0rem",  "px": 32, "dp": 32 },
+    "xl":  { "rem": "3.0rem",  "px": 48, "dp": 48 },
+    "2xl": { "rem": "4.0rem",  "px": 64, "dp": 64 },
+    "3xl": { "rem": "6.0rem",  "px": 96, "dp": 96 }
+  },
+  "radius": {
+    "sm":   { "px": 6,   "dp": 6,   "desc": "Badges, tags, inputs" },
+    "md":   { "px": 12,  "dp": 12,  "desc": "Standard cards, code blocks" },
+    "lg":   { "px": 16,  "dp": 16,  "desc": "Modal sheets, large cards" },
+    "pill": { "px": 100, "dp": 100, "desc": "Buttons, tabs, and pills" }
+  },
+  "typography": {
+    "font-display": "\"Albert Sans\", -apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, \"Helvetica Neue\", Arial, sans-serif",
+    "font-sans": "\"Albert Sans\", -apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, \"Helvetica Neue\", Arial, sans-serif",
+    "font-mono": "\"JetBrains Mono\", \"SF Mono\", Monaco, \"Cascadia Code\", Consolas, monospace",
+    "font-outlier": "\"JetBrains Mono\", \"SF Mono\", Monaco, \"Cascadia Code\", Consolas, monospace",
+    "scale": {
+      "display":   { "css": "clamp(2.5rem, 5.5vw, 4.25rem)", "sp": 48 },
+      "display-s": { "css": "clamp(1.85rem, 4vw, 2.75rem)", "sp": 36 },
+      "section":   { "css": "clamp(1.4rem, 2.75vw, 2.0rem)", "sp": 24 },
+      "title":     { "css": "1.4rem", "sp": 20 },
+      "lead":      { "css": "1.15rem", "sp": 18 },
+      "body":      { "css": "1.0rem", "sp": 16 },
+      "sm":        { "css": "0.875rem", "sp": 14 },
+      "xs":        { "css": "0.75rem", "sp": 12 }
+    }
+  },
+  "layout": {
+    "max-width": "1200px",
+    "max-width-narrow": "800px",
+    "gutter": "var(--space-md)"
+  },
+  "motion": {
+    "dur-micro": { "css": "120ms", "ms": 120 },
+    "dur-short": { "css": "200ms", "ms": 200 },
+    "dur-medium": { "css": "320ms", "ms": 320 },
+    "ease-standard": { "css": "cubic-bezier(0.4, 0, 0.2, 1)", "compose": "FastOutSlowInEasing" },
+    "ease-out": { "css": "cubic-bezier(0, 0, 0.2, 1)" },
+    "ease-in": { "css": "cubic-bezier(0.4, 0, 1, 1)" }
+  }
+}

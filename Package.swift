@@ -27,6 +27,9 @@ let package = Package(
             name: "CitadelUI",
             dependencies: [
                 "CitadelCore"
+            ],
+            resources: [
+                .process("Resources")
             ]
         ),
         .executableTarget(
@@ -45,6 +48,12 @@ let package = Package(
             name: "CitadelApp",
             dependencies: [
                 "CitadelCore",
+                "CitadelUI"
+            ]
+        ),
+        .executableTarget(
+            name: "BrandDemo",
+            dependencies: [
                 "CitadelUI"
             ]
         ),

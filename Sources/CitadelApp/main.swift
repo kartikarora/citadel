@@ -1,4 +1,5 @@
 import SwiftUI
+import CitadelUI
 import AppKit
 import Combine
 import CitadelCore
@@ -5348,6 +5349,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     let store = CitadelStore()
     
     func applicationDidFinishLaunching(_ notification: Notification) {
+        Font.registerBrandFonts()
         NSApp.setActivationPolicy(.regular)
         
         // Set application Dock icon dynamically (for both app bundle and raw binary execution)

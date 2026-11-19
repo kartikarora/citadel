@@ -1,0 +1,12 @@
+{
+  "version": 2,
+  "skills": {
+    "kartikarora-swiftui": {
+      "source": "https://distribute.kartikarora.me/ai/kartikarora-swiftui.skill",
+      "sourceUrl": "https://distribute.kartikarora.me/ai/kartikarora-swiftui.skill",
+      "sourceType": "download",
+      "skillPath": "SKILL.md",
+      "computedHash": "ff112c644c47d164c52ab69e697a19f5baef73aed42599512fc33ce2e17ae8ea"
+    }
+  }
+}
